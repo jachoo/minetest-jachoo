@@ -1590,6 +1590,69 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 			}
 		}
 	}
+	else if(command == TOCLIENT_PLAYER_GROUP) //j
+	{
+		std::string datastring((char*)&data[2], datasize-2);
+		std::istringstream is(datastring, std::ios_base::binary);
+		Player *player = m_env.getLocalPlayer();
+		assert(player != NULL);
+
+		/*
+		u16 command
+		u16 count
+
+		u8 bool kick
+		u16 group
+		...
+	*/
+		
+		const u16 count = readU16(is);
+		for(u16 i=0; i<count; i++){
+			const bool kick = readU8(is);
+			const u16 group = readU16(is);
+			if(kick){
+				player->groups.erase(group);
+				std::cout << "Player kicked from group " << group << std::endl;
+			}else{
+				player->groups.insert(group);
+				std::cout << "Player joined to group " << group << std::endl;
+			}
+		}
+		
+		dstream<<"Client got TOCLIENT_PLAYER_GROUP - count="
+				<< count
+				<<std::endl;
+
+	}
+	else if(command == TOCLIENT_GROUP_NAMES) //j
+	{
+		std::string datastring((char*)&data[2], datasize-2);
+		std::istringstream is(datastring, std::ios_base::binary);
+		
+		/*
+			u16		command
+			u16		count
+
+			u16		group id
+			u8		group name lenght
+			string	group name
+			...
+		*/
+		
+		const u16 count = readU16(is);
+		for(u16 i=0; i<count; i++){
+			u16 id = readU16(is);
+			u8 len = readU8(is);
+			std::string name;
+			for(u8 j=0; j<len; j++)
+				name += (char)readU8(is);
+			m_env.groupsManager.setGroup(id,name);
+		}
+		
+		dstream<<"Client got TOCLIENT_GROUP_NAMES - count="
+				<< count
+				<<std::endl;
+	}
 	else
 	{
 		dout_client<<DTIME<<"WARNING: Client: Ignoring unknown command "

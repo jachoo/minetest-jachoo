@@ -590,6 +590,17 @@ public:
 		return m_usage_timer;
 	}
 
+//j
+	void setOwner(u16 o)
+	{
+		m_owner = o;
+	}
+	u16 getOwner() const
+	{
+		return m_owner;
+	}
+
+
 	/*
 		Serialization
 	*/
@@ -712,6 +723,8 @@ private:
 		Map will unload the block when this reaches a timeout.
 	*/
 	float m_usage_timer;
+	//j
+	u16 m_owner;
 };
 
 inline bool blockpos_over_limit(v3s16 p)

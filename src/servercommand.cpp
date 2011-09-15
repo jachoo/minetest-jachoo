@@ -235,6 +235,109 @@ void cmd_banunban(std::wostringstream &os, ServerCommandContext *ctx)
 	}
 }
 
+//j
+void cmd_groupNew(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	if(ctx->parms.size() != 2)
+	{
+		os<<L"-!- Bad parameter(s)";
+		return;
+	}
+
+	if(ctx->player->groupOwner){
+		os<< L"-!- Error - you can define only one group!";
+		return;
+	}
+
+	std::string groupName = wide_to_narrow(ctx->parms[1]);
+
+	u16 groupId = ctx->env->groupsManager.newGroup(groupName,ctx->player);
+
+	if(groupId>0){
+		ctx->server->BroadcastPlayerGroup(groupId,groupName);
+		ctx->server->SendPlayerGroup(ctx->player,false,groupId);
+		os<< L"-!- Group '"<<ctx->parms[1]<<"' added.";
+	}
+	else os<< L"-!- Error - group '"<<ctx->parms[1]<<"' NOT added.";
+}
+
+void cmd_groupJoin(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	if(ctx->parms.size() != 3)
+	{
+		os<<L"-!- Missing parameter(s)";
+		return;
+	}
+
+	try{
+		/*int group_i = stoi(ctx->parms[1]);
+		if( group_i < 0 || group_i > 0xFFFF ) throw 0;
+		u16 group = (u16)group_i;*/
+
+		std::string groupName = wide_to_narrow(ctx->parms[1]);
+		u16 group = ctx->env->groupsManager.groupId(groupName);
+		if(!group) throw 0;
+
+		std::string playerName = wide_to_narrow(ctx->parms[2]);
+		if(playerName.length()==0) throw 0;
+
+		if(ctx->player->groups.find(group) == ctx->player->groups.end()) throw 0; //j!
+
+		Player* player = ctx->env->getPlayer(playerName.c_str());
+
+		if(!player) throw 0;
+
+		player->groups.insert(group);
+		ctx->server->SendPlayerGroup(player,false,group);
+
+		os<< L"-!- group-join - success";
+		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" joined group " + ctx->parms[1]);
+	}catch(...){
+		os<< L"-!- Error - player not added to group.";
+	}
+	
+}
+
+void cmd_groupKick(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	if(ctx->parms.size() != 3)
+	{
+		os<<L"-!- Missing parameter(s)";
+		return;
+	}
+
+	try{
+		/*int group_i = stoi(ctx->parms[1]);
+		if( group_i < 0 || group_i > 0xFFFF ) throw 0;
+		u16 group = (u16)group_i;*/
+		
+		std::string groupName = wide_to_narrow(ctx->parms[1]);
+		u16 group = ctx->env->groupsManager.groupId(groupName);
+		if(!group) throw 0; //group must exist
+
+		if(ctx->player->groups.find(group) == ctx->player->groups.end()) throw 0; //sender must be in this group
+
+		std::string playerName = wide_to_narrow(ctx->parms[2]);
+		if(playerName.length()==0) throw 0;
+		Player* player = ctx->env->getPlayer(playerName.c_str());
+		if(!player) throw 0; //player must exist
+
+		if(player->groupOwner == group) throw 0; //player can't be owner of that group
+
+		player->groups.erase(group);
+		ctx->server->SendPlayerGroup(player,true,group);
+
+		os<< L"-!- group-kick - success";
+		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" kicked from group " + ctx->parms[1]);
+	}catch(...){
+		os<< L"-!- Error - player not kicked from group.";
+	}
+	
+}
+
 
 std::wstring processServerCommand(ServerCommandContext *ctx)
 {
@@ -294,6 +397,18 @@ std::wstring processServerCommand(ServerCommandContext *ctx)
 	else if(ctx->parms[0] == L"me")
 	{
 		cmd_me(os, ctx);
+	}
+		else if(ctx->parms[0] == L"group-new")
+	{
+		cmd_groupNew(os, ctx);
+	}
+	else if(ctx->parms[0] == L"group-join")
+	{
+		cmd_groupJoin(os, ctx);
+	}
+	else if(ctx->parms[0] == L"group-kick")
+	{
+		cmd_groupKick(os, ctx);
 	}
 	else
 	{

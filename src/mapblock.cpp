@@ -38,7 +38,8 @@ MapBlock::MapBlock(Map *parent, v3s16 pos, bool dummy):
 		m_generated(false),
 		m_objects(this),
 		m_timestamp(BLOCK_TIMESTAMP_UNDEFINED),
-		m_usage_timer(0)
+		m_usage_timer(0),
+		m_owner(0) //j
 {
 	data = NULL;
 	if(dummy == false)
@@ -606,6 +607,10 @@ void MapBlock::serialize(std::ostream &os, u8 version)
 		}
 		os.write((char*)&flags, 1);
 
+		//j
+		if(version >= 21)
+			os << m_owner;
+
 		u32 nodecount = MAP_BLOCKSIZE*MAP_BLOCKSIZE*MAP_BLOCKSIZE;
 
 		/*
@@ -764,6 +769,10 @@ void MapBlock::deSerialize(std::istream &is, u8 version)
 		m_lighting_expired = (flags & 0x04) ? true : false;
 		if(version >= 18)
 			m_generated = (flags & 0x08) ? false : true;
+
+		//j
+		if(version >= 21)
+			is >> m_owner;
 
 		// Uncompress data
 		std::ostringstream os(std::ios_base::binary);

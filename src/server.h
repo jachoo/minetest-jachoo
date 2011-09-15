@@ -425,6 +425,12 @@ public:
 
 	// Envlock and conlock should be locked when calling this
 	void SendMovePlayer(Player *player);
+	void SendChatMessage(u16 peer_id, const std::wstring &message);
+	void BroadcastChatMessage(const std::wstring &message); //j - moved from private
+	void SendPlayerGroup(Player *player, bool kick, u16 group); //j; if group=0, all groups are sent
+	void SendGroupName(u16 peer_id, u16 group, const std::string& name); //j
+	void SendGroupNames(u16 peer_id, const std::map<u16,std::string>& groups); //j
+	void BroadcastPlayerGroup(u16 group, const std::string& name); //j
 	
 	u64 getPlayerAuthPrivs(const std::string &name)
 	{
@@ -506,8 +512,6 @@ private:
 	void SendWieldedItem(const Player *player);
 	// send wielded item info about all players to all players
 	void SendPlayerItems();
-	void SendChatMessage(u16 peer_id, const std::wstring &message);
-	void BroadcastChatMessage(const std::wstring &message);
 	void SendPlayerHP(Player *player);
 	/*
 		Send a node removal/addition event to all clients except ignore_id.

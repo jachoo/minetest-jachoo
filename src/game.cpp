@@ -1019,7 +1019,13 @@ void the_game(
 	// Object infos are shown in this
 	gui::IGUIStaticText *guitext_info = guienv->addStaticText(
 			L"",
-			core::rect<s32>(0,0,400,text_height+5) + v2s32(100,200),
+			core::rect<s32>(0,0,500,text_height*2+5) + v2s32(100,200), //j
+			false, false);
+
+	// Ownership info (groups) //j
+	gui::IGUIStaticText *guitext_ownership = guienv->addStaticText(
+			L"",
+			core::rect<s32>(0,0,200,text_height+5) + v2s32(100,450), //j
 			false, false);
 	
 	// Chat text
@@ -1140,6 +1146,9 @@ void the_game(
 		
 		// Info text
 		std::wstring infotext;
+
+		//j Ownership text
+		std::wstring ownershiptext;
 
 		// When screen size changes, update positions and sizes of stuff
 		/*if(screensize_changed)
@@ -1779,6 +1788,37 @@ void the_game(
 			static float dig_time = 0.0;
 			static u16 dig_index = 0;
 			
+			//j
+			Player* player = client.getEnv()->getLocalPlayer();
+			Map * map = &client.getEnv()->getMap();
+			GroupsManager* groupsManager = &client.getEnv()->groupsManager;
+			MapBlock* block = map->getBlockNoCreateNoEx(getNodeBlockPos(nodepos));
+			MapBlock* block2 = map->getBlockNoCreateNoEx(getNodeBlockPos(neighbourpos));
+			u16 block_owner = block ? block->getOwner() : 0;
+			u16 block2_owner = block2 ? block2->getOwner() : 0;
+
+			if(block_owner || block2_owner )
+				ownershiptext = L"Property of ";
+
+			if(block_owner)
+				ownershiptext += narrow_to_wide(groupsManager->groupNameNoEx(block_owner));
+			
+			if(block2_owner && block2_owner != block_owner){
+				if(block_owner) ownershiptext += L" and ";
+				ownershiptext += narrow_to_wide(groupsManager->groupNameNoEx(block2_owner));
+			}
+
+			bool canModifyNeighbour = player->canModify(NULL,block2,NULL,NULL);
+			bool canModify = canModifyNeighbour && player->canModify(NULL,block,NULL,NULL);
+
+			if(!canModify) ownershiptext += narrow_to_wide(std::string(" [X] "));
+
+			//jTODO: remove it
+			/*ownershiptext += L"     ";
+			for(std::set<int>::const_iterator it=player->groups.begin(); it!=player->groups.end(); it++){
+				ownershiptext += L"," + narrow_to_wide(itos(*it)) + L":" + narrow_to_wide(groupsManager->groupNameNoEx(*it));
+			}*/
+			
 			/*
 				Visualize selection
 			*/
@@ -1825,102 +1865,106 @@ void the_game(
 					}
 				}
 
-				if(input->getLeftClicked() ||
-						(input->getLeftState() && nodepos != nodepos_old))
-				{
-					dstream<<DTIME<<"Started digging"<<std::endl;
-					client.groundAction(0, nodepos, neighbourpos, g_selected_item);
-				}
-				if(input->getLeftClicked())
-				{
-					client.setTempMod(nodepos, NodeMod(NODEMOD_CRACK, 0));
-				}
-				if(input->getLeftState())
-				{
-					MapNode n = client.getNode(nodepos);
-				
-					// Get tool name. Default is "" = bare hands
-					std::string toolname = "";
-					InventoryList *mlist = local_inventory.getList("main");
-					if(mlist != NULL)
-					{
-						InventoryItem *item = mlist->getItem(g_selected_item);
-						if(item && (std::string)item->getName() == "ToolItem")
-						{
-							ToolItem *titem = (ToolItem*)item;
-							toolname = titem->getToolName();
-						}
-					}
+				//j
+				if(canModify){
 
-					// Get digging properties for material and tool
-					content_t material = n.getContent();
-					DiggingProperties prop =
-							getDiggingProperties(material, toolname);
+					if(input->getLeftClicked() ||
+							(input->getLeftState() && nodepos != nodepos_old))
+					{
+						dstream<<DTIME<<"Started digging"<<std::endl;
+						client.groundAction(0, nodepos, neighbourpos, g_selected_item);
+					}
+					if(input->getLeftClicked())
+					{
+						client.setTempMod(nodepos, NodeMod(NODEMOD_CRACK, 0));
+					}
+					if(input->getLeftState())
+					{
+						MapNode n = client.getNode(nodepos);
 					
-					float dig_time_complete = 0.0;
-
-					if(prop.diggable == false)
-					{
-						/*dstream<<"Material "<<(int)material
-								<<" not diggable with \""
-								<<toolname<<"\""<<std::endl;*/
-						// I guess nobody will wait for this long
-						dig_time_complete = 10000000.0;
-					}
-					else
-					{
-						dig_time_complete = prop.time;
-					}
-					
-					if(dig_time_complete >= 0.001)
-					{
-						dig_index = (u16)((float)CRACK_ANIMATION_LENGTH
-								* dig_time/dig_time_complete);
-					}
-					// This is for torches
-					else
-					{
-						dig_index = CRACK_ANIMATION_LENGTH;
-					}
-
-					if(dig_index < CRACK_ANIMATION_LENGTH)
-					{
-						//TimeTaker timer("client.setTempMod");
-						//dstream<<"dig_index="<<dig_index<<std::endl;
-						client.setTempMod(nodepos, NodeMod(NODEMOD_CRACK, dig_index));
-					}
-					else
-					{
-						dstream<<DTIME<<"Digging completed"<<std::endl;
-						client.groundAction(3, nodepos, neighbourpos, g_selected_item);
-						client.clearTempMod(nodepos);
-						client.removeNode(nodepos);
-
-						dig_time = 0;
-
-						nodig_delay_counter = dig_time_complete
-								/ (float)CRACK_ANIMATION_LENGTH;
-
-						// We don't want a corresponding delay to
-						// very time consuming nodes
-						if(nodig_delay_counter > 0.5)
+						// Get tool name. Default is "" = bare hands
+						std::string toolname = "";
+						InventoryList *mlist = local_inventory.getList("main");
+						if(mlist != NULL)
 						{
-							nodig_delay_counter = 0.5;
+							InventoryItem *item = mlist->getItem(g_selected_item);
+							if(item && (std::string)item->getName() == "ToolItem")
+							{
+								ToolItem *titem = (ToolItem*)item;
+								toolname = titem->getToolName();
+							}
 						}
-						// We want a slight delay to very little
-						// time consuming nodes
-						float mindelay = 0.15;
-						if(nodig_delay_counter < mindelay)
-						{
-							nodig_delay_counter = mindelay;
-						}
-					}
 
-					dig_time += dtime;
+						// Get digging properties for material and tool
+						content_t material = n.getContent();
+						DiggingProperties prop =
+								getDiggingProperties(material, toolname);
+						
+						float dig_time_complete = 0.0;
+
+						if(prop.diggable == false)
+						{
+							/*dstream<<"Material "<<(int)material
+									<<" not diggable with \""
+									<<toolname<<"\""<<std::endl;*/
+							// I guess nobody will wait for this long
+							dig_time_complete = 10000000.0;
+						}
+						else
+						{
+							dig_time_complete = prop.time;
+						}
+						
+						if(dig_time_complete >= 0.001)
+						{
+							dig_index = (u16)((float)CRACK_ANIMATION_LENGTH
+									* dig_time/dig_time_complete);
+						}
+						// This is for torches
+						else
+						{
+							dig_index = CRACK_ANIMATION_LENGTH;
+						}
+
+						if(dig_index < CRACK_ANIMATION_LENGTH)
+						{
+							//TimeTaker timer("client.setTempMod");
+							//dstream<<"dig_index="<<dig_index<<std::endl;
+							client.setTempMod(nodepos, NodeMod(NODEMOD_CRACK, dig_index));
+						}
+						else
+						{
+							dstream<<DTIME<<"Digging completed"<<std::endl;
+							client.groundAction(3, nodepos, neighbourpos, g_selected_item);
+							client.clearTempMod(nodepos);
+							client.removeNode(nodepos);
+
+							dig_time = 0;
+
+							nodig_delay_counter = dig_time_complete
+									/ (float)CRACK_ANIMATION_LENGTH;
+
+							// We don't want a corresponding delay to
+							// very time consuming nodes
+							if(nodig_delay_counter > 0.5)
+							{
+								nodig_delay_counter = 0.5;
+							}
+							// We want a slight delay to very little
+							// time consuming nodes
+							float mindelay = 0.15;
+							if(nodig_delay_counter < mindelay)
+							{
+								nodig_delay_counter = mindelay;
+							}
+						}
+
+						dig_time += dtime;
+					}
 				}
 			}
 			
-			if(input->getRightClicked())
+			if(canModify && input->getRightClicked())
 			{
 				std::cout<<DTIME<<"Ground right-clicked"<<std::endl;
 				
@@ -2158,6 +2202,7 @@ void the_game(
 		
 		{
 			guitext_info->setText(infotext.c_str());
+			guitext_ownership->setText(ownershiptext.c_str());
 		}
 		
 		/*

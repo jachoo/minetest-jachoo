@@ -172,6 +172,29 @@ enum ToClientCommand
 			string serialized item
 		}
 	*/
+	
+		
+	TOCLIENT_PLAYER_GROUP = 0x37,
+	/*
+		u16 command
+		u16 count
+
+		u8 bool kick
+		u16 group
+		...
+	*/
+
+	TOCLIENT_GROUP_NAMES = 0x38,
+	/*
+		u16		command
+		u16		count
+
+		u16		group id
+		u8		group name lenght
+		string	group name
+		...
+	*/
+
 };
 
 enum ToServerCommand

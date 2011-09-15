@@ -2182,10 +2182,12 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		// Send player items to all players
 		SendPlayerItems();
 
-		// Send HP
+		// Send HP & groups //j
 		{
 			Player *player = m_env.getPlayer(peer_id);
 			SendPlayerHP(player);
+			SendPlayerGroup(player,false,0);
+			SendGroupNames(player->peer_id,m_env.groupsManager.getNames());
 		}
 		
 		// Send time of day
@@ -2343,6 +2345,13 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		catch(InvalidPositionException &e)
 		{
 			derr_server<<"CLICK_OBJECT block not found"<<std::endl;
+			return;
+		}
+
+		//j
+		if( !player->canModify(NULL,block,NULL,NULL) )
+		{
+			derr_server<<"Player isn't owner of a block"<<std::endl;
 			return;
 		}
 
@@ -2540,6 +2549,13 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		p_over.Y = readS16(&data[11]);
 		p_over.Z = readS16(&data[13]);
 		u16 item_i = readU16(&data[15]);
+
+		//j
+		if( !player->canModify(&m_env.getMap(),NULL,NULL,&p_under) || !player->canModify(&m_env.getMap(),NULL,NULL,&p_over) )
+		{
+			derr_server<<"Player isn't owner of a block"<<std::endl;
+			return;
+		}
 
 		//TODO: Check that target is reasonably close
 		
@@ -3056,6 +3072,13 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			return;
 		}
 
+		//j
+		if( !player->canModify(NULL,block,NULL,NULL) )
+		{
+			derr_server<<"Player isn't owner of a block"<<std::endl;
+			return;
+		}
+
 		MapBlockObject *obj = block->getObject(id);
 		if(obj == NULL)
 		{
@@ -3105,11 +3128,50 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			return;
 		if(meta->typeId() != CONTENT_SIGN_WALL)
 			return;
-		SignNodeMetadata *signmeta = (SignNodeMetadata*)meta;
-		signmeta->setText(text);
 		
 		v3s16 blockpos = getNodeBlockPos(p);
 		MapBlock *block = m_env.getMap().getBlockNoCreateNoEx(blockpos);
+
+		//j
+		if( !player->canModify(NULL,block,NULL,NULL) )
+		{
+			derr_server<<"Player isn't owner of a block"<<std::endl;
+			return;
+		}
+
+		if(text.length()>1 && text[0]=='#'){
+			//j: ustawiamy wlasciciela
+
+			std::string groupName = text.substr(1);
+
+			/*int i_group = atoi(text.c_str()+1);
+			if(i_group<0 || i_group > 0xFFFF){
+				derr_server<<"Wrong group number"<<std::endl;
+				return;
+			}
+			u16 group = (u16)i_group;*/
+
+			u16 group = 0;
+			if(groupName != "#"){
+				group = m_env.groupsManager.groupId(groupName);
+				if(!group){
+					derr_server<<"Wrong group name"<<std::endl;
+					return;
+				}
+			}
+
+			//player must be in this group or group is null
+			if(group && player->groups.find(group) == player->groups.end())
+				return;
+
+			block->setOwner(group);
+			if(group) text = "Property of " + groupName;
+			else text = "Property of nobody";
+		}
+
+		SignNodeMetadata *signmeta = (SignNodeMetadata*)meta;
+		signmeta->setText(text);
+		
 		if(block)
 		{
 			block->setChangedFlag();
@@ -3851,6 +3913,151 @@ void Server::SendMovePlayer(Player *player)
 	SharedBuffer<u8> data((u8*)s.c_str(), s.size());
 	// Send as reliable
 	m_con.Send(player->peer_id, 0, data, true);
+}
+
+//j
+void Server::SendPlayerGroup(Player *player, bool kick = false, u16 group = 0)
+{
+	DSTACK(__FUNCTION_NAME);
+	std::ostringstream os(std::ios_base::binary);
+	/*
+		u16 command
+		u16 count
+
+		u8 bool kick
+		u16 group
+		...
+	*/
+	writeU16(os, TOCLIENT_PLAYER_GROUP);
+	if(group>0){
+		writeU16(os,1);
+		writeU8(os,kick);
+		writeU16(os,group);
+		{
+			dstream<<"Server sending TOCLIENT_PLAYER_GROUP - "
+				<< ((kick)?"KICK from ":"JOIN to ")
+				<< group
+				<<std::endl;
+		}
+	}else{
+		//send all groups
+		u16 count = (u16)player->groups.size();
+		writeU16(os,count);
+		for(std::set<int>::const_iterator it=player->groups.begin(); it!=player->groups.end(); it++){
+			writeU8(os,false);
+			writeU16(os,*it);
+		}
+	}
+
+	// Make data buffer
+	std::string s = os.str();
+	SharedBuffer<u8> data((u8*)s.c_str(), s.size());
+	// Send as reliable
+	m_con.Send(player->peer_id, 0, data, true);
+}
+
+
+//j
+void writeGroupIdName(std::ostringstream& os, u16 id, const std::string& name){
+	/*
+		u16		group id
+		u8		group name lenght
+		string	group name
+	*/
+	if(name.length() > 0xFFFF) throw std::exception("too long group name"); //exception?
+
+	writeU16(os,id);
+
+	u16 len = (u16)name.length();
+	writeU8(os,len);
+
+	//for(int i=0; i<len; i++) writeU8(name[i]);
+	os << name;
+}
+
+//j
+void Server::SendGroupName(u16 peer_id, u16 group, const std::string& name)
+{
+	DSTACK(__FUNCTION_NAME);
+	std::ostringstream os(std::ios_base::binary);
+	/*
+		u16		command
+		u16		count
+
+		u16		group id
+		u8		group name lenght
+		string	group name
+		...
+	*/
+	writeU16(os, TOCLIENT_GROUP_NAMES);
+	if(group>0){
+		writeU16(os,1);
+		writeGroupIdName(os,group,name);
+		{
+			dstream<<"Server sending TOCLIENT_GROUP_NAMES - "
+				<< "id=" << group
+				<< ", name=" << name
+				<<std::endl;
+		}
+	}
+
+	// Make data buffer
+	std::string s = os.str();
+	SharedBuffer<u8> data((u8*)s.c_str(), s.size());
+	// Send as reliable
+	m_con.Send(peer_id, 0, data, true);
+}
+
+//j
+void Server::SendGroupNames(u16 peer_id, const std::map<u16,std::string>& groups)
+{
+	DSTACK(__FUNCTION_NAME);
+	/*
+		u16		command
+		u16		count
+
+		u16		group id
+		u8		group name lenght
+		string	group name
+		...
+	*/
+	u16 count = (u16)groups.size();
+
+	if(count==0) return;
+
+	std::ostringstream os(std::ios_base::binary);
+	writeU16(os, TOCLIENT_GROUP_NAMES);
+	writeU16(os,count);
+
+	for(std::map<u16,std::string>::const_iterator it=groups.begin(); it!=groups.end(); it++)
+		writeGroupIdName(os,it->first,it->second);
+
+	dstream<<"Server sending TOCLIENT_GROUP_NAMES - "
+		<< "count=" << count
+		<<std::endl;
+
+	// Make data buffer
+	std::string s = os.str();
+	SharedBuffer<u8> data((u8*)s.c_str(), s.size());
+	// Send as reliable
+	m_con.Send(peer_id, 0, data, true);
+}
+
+//j
+void Server::BroadcastPlayerGroup(u16 group, const std::string& name)
+{
+	for(core::map<u16, RemoteClient*>::Iterator
+		i = m_clients.getIterator();
+		i.atEnd() == false; i++)
+	{
+		// Get client and check that it is valid
+		RemoteClient *client = i.getNode()->getValue();
+		assert(client->peer_id == i.getNode()->getKey());
+		if(client->serialization_version == SER_FMT_VER_INVALID)
+			continue;
+
+		SendGroupName(client->peer_id,group,name);
+	}
 }
 
 void Server::sendRemoveNode(v3s16 p, u16 ignore_id,

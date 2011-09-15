@@ -24,6 +24,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "inventory.h"
 #include "collision.h"
 
+//j
+#include "mapblock.h"
+#include <set>
+
 #define PLAYERNAME_SIZE 20
 
 #define PLAYERNAME_ALLOWED_CHARS "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
@@ -153,6 +157,11 @@ public:
 	u16 hp;
 
 	u16 peer_id;
+
+	//j
+	std::set<int> groups;
+	u16 groupOwner;
+	bool canModify(Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const;
 
 protected:
 	char m_name[PLAYERNAME_SIZE];

@@ -37,6 +37,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <ostream>
 #include "utility.h"
 #include "activeobject.h"
+#include "groups.h"
 
 class Server;
 class ActiveBlockModifier;
@@ -83,6 +84,8 @@ public:
 		return m_time_of_day;
 	}
 
+	//j
+	GroupsManager groupsManager;
 protected:
 	// peer_ids in here should be unique, except that there may be many 0s
 	core::list<Player*> m_players;
@@ -151,6 +154,10 @@ public:
 	*/
 	void serializePlayers(const std::string &savedir);
 	void deSerializePlayers(const std::string &savedir);
+
+	//j
+	void serializeGroups(const std::string &savedir);
+	void deSerializeGroups(const std::string &savedir);
 
 	/*
 		Save and load time of day and game timer

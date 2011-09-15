@@ -23,6 +23,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "constants.h"
 #include "utility.h"
 
+#include <sstream>
+
 
 Player::Player():
 	touching_ground(false),
@@ -37,7 +39,8 @@ Player::Player():
 	m_pitch(0),
 	m_yaw(0),
 	m_speed(0,0,0),
-	m_position(0,0,0)
+	m_position(0,0,0),
+	groupOwner(0)
 {
 	updateName("<not set>");
 	resetInventory();
@@ -110,6 +113,12 @@ void Player::serialize(std::ostream &os)
 	args.setV3F("position", m_position);
 	args.setBool("craftresult_is_preview", craftresult_is_preview);
 	args.setS32("hp", hp);
+	//j
+	std::ostringstream groupsStrStream;
+	for(std::set<int>::const_iterator it=groups.begin(); it!=groups.end(); it++)
+		groupsStrStream << *it << ' ';
+	args.set("groups",groupsStrStream.str());
+	args.setS32("groupOwner",groupOwner);
 
 	args.writeLines(os);
 
@@ -174,8 +183,42 @@ void Player::deSerialize(std::istream &is)
 	}catch(SettingNotFoundException &e){
 		privs = PRIV_DEFAULT;
 	}*/
+	//j
+	try{
+		std::string groupsStr = args.get("groups");
+		std::istringstream groupsStrStream(groupsStr);
+		while(groupsStrStream.good() && !groupsStrStream.eof()){
+			std::string s;
+			groupsStrStream >> s;
+			if(s.length() == 0) continue;
+			int i = atoi(s.c_str());
+			if(i>=0 && i<=0xFFFF) groups.insert(i);
+		}
+		groupOwner = args.getU16("groupOwner");
+	}catch(SettingNotFoundException& e){}
 
 	inventory.deSerialize(is);
+}
+
+//j
+static inline bool canModifyNoCheck(const Player* player, const MapBlock* block) {
+	u16 owner = block->getOwner();
+	return owner == 0 || player->groups.find(owner) != player->groups.end();
+}
+
+static inline bool canModifyCheck(const Player* player, const MapBlock* block) {
+	if(!player || !block) return false;
+	return canModifyNoCheck(player,block);
+}
+
+//j
+bool Player::canModify(Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const
+{
+	if(block) return canModifyNoCheck(this,block);
+	if(!map) return false;
+	if(nodepos) return canModifyCheck(this,map->getBlockNoCreateNoEx( getNodeBlockPos(*nodepos) ));
+	//if(node) return node->
+	return false;
 }
 
 /*
