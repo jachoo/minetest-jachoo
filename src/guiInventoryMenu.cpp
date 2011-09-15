@@ -61,7 +61,7 @@ void drawInventoryItem(video::IVideoDriver *driver,
 				/*rect.UpperLeftCorner,
 				core::dimension2d<u32>(rect.getWidth(), 15)*/
 				rect.LowerRightCorner - sdim,
-				sdim
+				rect.LowerRightCorner
 			);
 
 			video::SColor bgcolor(128,0,0,0);

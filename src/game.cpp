@@ -1008,32 +1008,32 @@ void the_game(
 	gui::IGUIStaticText *guitext = guienv->addStaticText(
 			L"Minetest-c55",
 			core::rect<s32>(5, 5, 795, 5+text_height),
-			false, false);
+			false, false, guiroot);
 	// Second line of debug text
 	gui::IGUIStaticText *guitext2 = guienv->addStaticText(
 			L"",
 			core::rect<s32>(5, 5+(text_height+5)*1, 795, (5+text_height)*2),
-			false, false);
+			false, false, guiroot);
 	
 	// At the middle of the screen
 	// Object infos are shown in this
 	gui::IGUIStaticText *guitext_info = guienv->addStaticText(
 			L"",
 			core::rect<s32>(0,0,500,text_height*2+5) + v2s32(100,200), //j
-			false, false);
+			false, false, guiroot);
 
 	// Ownership info (groups) //j
 	gui::IGUIStaticText *guitext_ownership = guienv->addStaticText(
 			L"",
 			core::rect<s32>(0,0,200,text_height+5) + v2s32(100,450), //j
-			false, false);
+			false, false, guiroot);
 	
 	// Chat text
 	gui::IGUIStaticText *guitext_chat = guienv->addStaticText(
 			L"",
 			core::rect<s32>(0,0,0,0),
 			//false, false); // Disable word wrap as of now
-			false, true);
+			false, true, guiroot);
 	//guitext_chat->setBackgroundColor(video::SColor(96,0,0,0));
 	core::list<ChatLine> chat_lines;
 	
