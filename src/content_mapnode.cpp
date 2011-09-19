@@ -629,6 +629,19 @@ void content_mapnode_init()
 	f->setInventoryTexture("nc_rb.png");
 	f->dug_item = std::string("MaterialItem2 ")+itos(i)+" 1";
 	setStoneLikeDiggingProperties(f->digging_properties, 3.0);
+
+	i = CONTENT_BORDERSTONE;
+	f = &content_features(i);
+	f->setAllTextures("borderstone.png");
+	f->setTexture(0,"borderstone_top.png");
+	f->setTexture(1,"borderstone_top.png");
+	f->setInventoryTextureCube("borderstone_top.png", "borderstone.png", "borderstone.png");
+	f->param_type = CPT_NONE;
+	f->is_ground_content = true;
+	f->dug_item = std::string("MaterialItem2 ")+itos(CONTENT_COBBLE)+" 4";
+	if(f->initial_metadata == NULL)
+		f->initial_metadata = new SignNodeMetadata("Property of nobody");
+	setStoneLikeDiggingProperties(f->digging_properties, 10.0);
 	
 	// NOTE: Remember to add frequently used stuff to the texture atlas in tile.cpp
 	

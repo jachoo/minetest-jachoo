@@ -28,6 +28,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "porting.h"
 #include "mapgen.h"
 #include "nodemetadata.h"
+#include "content_mapnode.h"
 
 /*
 	SQLite format specification:
@@ -896,6 +897,15 @@ void Map::addNodeAndUpdate(v3s16 p, MapNode n,
 	m_dout<<DTIME<<"Map::addNodeAndUpdate(): p=("
 			<<p.X<<","<<p.Y<<","<<p.Z<<")"<<std::endl;*/
 
+	//j
+	//one block may have only one border stone
+	if(n.getContent() == CONTENT_BORDERSTONE)
+	{
+		MapBlock * block = getBlockNoCreate(getNodeBlockPos(p));
+		assert(block != NULL);
+		if(block->getOwner()) return;
+	}
+
 	/*
 		From this node to nodes underneath:
 		If lighting is sunlight (1.0), unlight neighbours and
@@ -1166,6 +1176,17 @@ void Map::removeNodeAndUpdate(v3s16 p,
 		This also clears the lighting.
 	*/
 
+	// Add the block of the removed node to modified_blocks
+	v3s16 blockpos = getNodeBlockPos(p);
+	MapBlock * block = getBlockNoCreate(blockpos);
+	assert(block != NULL);
+	modified_blocks.insert(blockpos, block);
+
+	//j
+	// If removing border stone -> clear ownership
+	if(block->getOwner() && getNode(p).getContent() == CONTENT_BORDERSTONE)
+		block->setOwner(0);
+	
 	MapNode n;
 	n.setContent(replace_material);
 	setNode(p, n);
@@ -1179,12 +1200,6 @@ void Map::removeNodeAndUpdate(v3s16 p,
 		*/
 		spreadLight(bank, light_sources, modified_blocks);
 	}
-
-	// Add the block of the removed node to modified_blocks
-	v3s16 blockpos = getNodeBlockPos(p);
-	MapBlock * block = getBlockNoCreate(blockpos);
-	assert(block != NULL);
-	modified_blocks.insert(blockpos, block);
 
 	/*
 		If the removed node was under sunlight, propagate the

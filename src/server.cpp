@@ -2554,6 +2554,9 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		if( !player->canModify(&m_env.getMap(),NULL,NULL,&p_under) || !player->canModify(&m_env.getMap(),NULL,NULL,&p_over) )
 		{
 			derr_server<<"Player isn't owner of a block"<<std::endl;
+			RemoteClient *client = getClient(peer_id);
+			client->SetBlockNotSent(getNodeBlockPos(p_under));
+			client->SetBlockNotSent(getNodeBlockPos(p_over));
 			return;
 		}
 
@@ -3139,10 +3142,14 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			return;
 		}
 
-		if(text.length()>1 && text[0]=='#'){
+		MapNode node = m_env.getMap().getNodeNoEx(p);
+
+		//if(text.length()>1 && text[0]=='#'){
+		if( node.getContent() == CONTENT_BORDERSTONE ){
+		
 			//j: ustawiamy wlasciciela
 
-			std::string groupName = text.substr(1);
+			std::string groupName = text;
 
 			/*int i_group = atoi(text.c_str()+1);
 			if(i_group<0 || i_group > 0xFFFF){
@@ -3151,8 +3158,11 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			}
 			u16 group = (u16)i_group;*/
 
+			bool nullgroup = false;
+			if(groupName == "#" || groupName == "" || groupName == "nobody") nullgroup = true;
+
 			u16 group = 0;
-			if(groupName != "#"){
+			if(!nullgroup){
 				group = m_env.groupsManager.groupId(groupName);
 				if(!group){
 					derr_server<<"Wrong group name"<<std::endl;

@@ -2014,6 +2014,10 @@ void the_game(
 
 					std::wstring wtext =
 							narrow_to_wide(signmeta->getText());
+					
+					if(map->getNodeNoEx(nodepos).getContent() == CONTENT_BORDERSTONE)
+						if(wtext.substr(0,12) == L"Property of ")
+							wtext = wtext.substr(12);
 
 					(new GUITextInputMenu(guienv, guiroot, -1,
 							&g_menumgr, dest,

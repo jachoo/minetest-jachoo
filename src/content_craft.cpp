@@ -429,6 +429,24 @@ InventoryItem *craft_get_result(InventoryItem **items)
 		}
 	}
 
+	//j Border stone
+	{
+		ItemSpec specs[9];
+		specs[0] = ItemSpec(ITEM_MATERIAL, CONTENT_STONE);
+		specs[1] = ItemSpec(ITEM_MATERIAL, CONTENT_STONE);
+		specs[2] = ItemSpec(ITEM_MATERIAL, CONTENT_STONE);
+		specs[3] = ItemSpec(ITEM_MATERIAL, CONTENT_STONE);
+		specs[4] = ItemSpec(ITEM_MATERIAL, CONTENT_STEEL); //steel
+		specs[5] = ItemSpec(ITEM_MATERIAL, CONTENT_STONE);
+		specs[6] = ItemSpec(ITEM_MATERIAL, CONTENT_STONE);
+		specs[7] = ItemSpec(ITEM_MATERIAL, CONTENT_STONE);
+		specs[8] = ItemSpec(ITEM_MATERIAL, CONTENT_STONE);
+		if(checkItemCombination(items, specs))
+		{
+			return new MaterialItem(CONTENT_BORDERSTONE, 4); //?
+		}
+	}
+
 	return NULL;
 }
 
@@ -487,6 +505,7 @@ void craft_set_creative_inventory(Player *player)
 		CONTENT_FURNACE,
 		CONTENT_SIGN_WALL,
 		CONTENT_LAVASOURCE,
+		CONTENT_BORDERSTONE,
 		CONTENT_IGNORE
 	};
 	
