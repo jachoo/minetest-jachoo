@@ -2261,6 +2261,31 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		/*dout_server<<"Server::ProcessData(): Moved player "<<peer_id<<" to "
 				<<"("<<position.X<<","<<position.Y<<","<<position.Z<<")"
 				<<" pitch="<<pitch<<" yaw="<<yaw<<std::endl;*/
+
+		//j
+		v3s16 pos = floatToInt(position, BS);
+		MapNode n = m_env.getMap().getNodeNoEx(pos);
+		if(n.getContent() == CONTENT_TELEPORT){
+			SignNodeMetadata* meta = (SignNodeMetadata*)m_env.getMap().getNodeMetadata(pos);
+			if(meta){
+				v3f t;
+				std::string text = meta->getText();
+				str_replace_char(text,',',' ');
+				std::istringstream is(text);
+				is >> t.X >> t.Y >> t.Z;
+
+				//TODO: map limits!
+				if(	t.X > 32000 || t.X < -32000 ||
+					t.Y > 32000 || t.Y < -32000 ||
+					t.Z > 32000 || t.Z < -32000 ||
+					(t.X == 0 && t.Y == 0 && t.Z == 0)
+				) return;
+
+				dout_server << "Teleporting: " << text << std::endl;
+				player->setPosition(t*BS);
+				SendMovePlayer(player);
+			}
+		}
 	}
 	else if(command == TOSERVER_GOTBLOCKS)
 	{
@@ -3147,7 +3172,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		//if(text.length()>1 && text[0]=='#'){
 		if( node.getContent() == CONTENT_BORDERSTONE ){
 		
-			//j: ustawiamy wlasciciela
+			//j: set ownership
 
 			std::string groupName = text;
 
@@ -3177,6 +3202,21 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			block->setOwner(group);
 			if(group) text = "Property of " + groupName;
 			else text = "Property of nobody";
+		} else if( node.getContent() == CONTENT_TELEPORT ){
+
+			//j teleport
+
+			//std::string st = text;
+			//str_replace_char(st,',',' ');
+			//float f[3];
+			//std::istringstream is(st);
+			//is >> f[0] >> f[1] >> f[2];
+
+			////TODO: map limits!
+			//for(int i=0; i<3; i++)
+			//	if(f[i]>32000 || f[i]<-32000) f[i]=0;
+
+			//text = ftos(f[0]) + "," + ftos(f[1]) + "," + ftos(f[2]);
 		}
 
 		SignNodeMetadata *signmeta = (SignNodeMetadata*)meta;

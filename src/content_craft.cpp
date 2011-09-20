@@ -447,6 +447,24 @@ InventoryItem *craft_get_result(InventoryItem **items)
 		}
 	}
 
+	//j 
+	{
+		ItemSpec specs[9];
+		specs[0] = ItemSpec(ITEM_MATERIAL, CONTENT_STEEL);
+		specs[1] = ItemSpec(ITEM_MATERIAL, CONTENT_STEEL);
+		specs[2] = ItemSpec(ITEM_MATERIAL, CONTENT_STEEL);
+		specs[3] = ItemSpec(ITEM_MATERIAL, CONTENT_STEEL);
+		specs[4] = ItemSpec(ITEM_MATERIAL, CONTENT_MESE);
+		specs[5] = ItemSpec(ITEM_MATERIAL, CONTENT_STEEL);
+		specs[6] = ItemSpec(ITEM_MATERIAL, CONTENT_STEEL);
+		specs[7] = ItemSpec(ITEM_MATERIAL, CONTENT_STEEL);
+		specs[8] = ItemSpec(ITEM_MATERIAL, CONTENT_STEEL);
+		if(checkItemCombination(items, specs))
+		{
+			return new MaterialItem(CONTENT_TELEPORT, 1);
+		}
+	}
+
 	return NULL;
 }
 
@@ -506,6 +524,7 @@ void craft_set_creative_inventory(Player *player)
 		CONTENT_SIGN_WALL,
 		CONTENT_LAVASOURCE,
 		CONTENT_BORDERSTONE,
+		CONTENT_TELEPORT,
 		CONTENT_IGNORE
 	};
 	

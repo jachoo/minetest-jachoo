@@ -642,6 +642,23 @@ void content_mapnode_init()
 	if(f->initial_metadata == NULL)
 		f->initial_metadata = new SignNodeMetadata("Property of nobody");
 	setStoneLikeDiggingProperties(f->digging_properties, 10.0);
+
+	i = CONTENT_TELEPORT;
+	f = &content_features(i);
+	f->setAllTextures("teleport.png");
+	//f->setInventoryTexture("teleport.png");
+	f->param_type = CPT_LIGHT;
+	f->light_propagates = true;
+	f->light_source = 3; //?
+	f->sunlight_propagates = true;
+	f->solidness = 0; // drawn separately, makes no faces
+	f->walkable = false;
+	f->wall_mounted = true;
+	f->air_equivalent = true;
+	f->dug_item = std::string("MaterialItem2 ")+itos(i)+" 1";
+	if(f->initial_metadata == NULL)
+		f->initial_metadata = new SignNodeMetadata("");
+	f->digging_properties.set("", DiggingProperties(true, 0.5, 0));
 	
 	// NOTE: Remember to add frequently used stuff to the texture atlas in tile.cpp
 	

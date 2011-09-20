@@ -56,6 +56,8 @@ MapNode mapnode_translate_to_internal(MapNode n_from, u8 version);
 #define CONTENT_LAVA 32
 #define CONTENT_LAVASOURCE 33
 
+#define CONTENT_TELEPORT 34
+
 // 0x800...0xfff (2048...4095): higher 4 bytes of param2 are not usable
 #define CONTENT_GRASS 0x800 //1
 #define CONTENT_TREE 0x801 //4
@@ -84,6 +86,7 @@ MapNode mapnode_translate_to_internal(MapNode n_from, u8 version);
 #define CONTENT_NC 0x817
 #define CONTENT_NC_RB 0x818
 #define CONTENT_BORDERSTONE 0x819
+
 
 #endif
 
