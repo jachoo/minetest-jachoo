@@ -1,102 +1,102 @@
-#include "groups.h"
+#include "clans.h"
 #include "player.h"
 
-GroupsManager::GroupsManager():
+ClansManager::ClansManager():
 m_maxId(0)
 {}
 
-u16 GroupsManager::newGroup(const std::string& name, Player* player)
+u16 ClansManager::newClan(const std::string& name, Player* player)
 {
 	if(	   name.length()==0
 		|| name.length()>PLAYERNAME_SIZE
 		|| !string_allowed(name, PLAYERNAME_ALLOWED_CHARS)
 	  ) return 0;
-	if(groupExists(name)) return 0;
+	if(clanExists(name)) return 0;
 	if(m_maxId == 0xFFFF) return 0; //j: szukanie jakiegos wolnego?
 	u16 id = ++m_maxId;
 	m_idName[id] = name;
 	m_nameId[name] = id;
 	if(player){
-		player->groupOwner = id;
-		player->groups.insert(id);
+		player->clanOwner = id;
+		player->clans.insert(id);
 	}
 	return id;
 }
 	
-bool GroupsManager::groupExists(u16 id) const
+bool ClansManager::clanExists(u16 id) const
 {
 	return m_idName.find(id) != m_idName.end();
 }
 
-bool GroupsManager::groupExists(const std::string& name) const
+bool ClansManager::clanExists(const std::string& name) const
 {
 	return m_nameId.find(name) != m_nameId.end();
 }
 
-bool GroupsManager::groupDeleted(u16 id) const
+bool ClansManager::clanDeleted(u16 id) const
 {
 	return m_deleted.find(id) != m_deleted.end();
 }
 
-u16 GroupsManager::groupId(const std::string& name) const
+u16 ClansManager::clanId(const std::string& name) const
 {
 	std::map<std::string,u16>::const_iterator it = m_nameId.find(name);
 	if(it==m_nameId.end()) return 0;
 	return it->second;
 }
 
-const std::string& GroupsManager::groupName(u16 id) const
+const std::string& ClansManager::clanName(u16 id) const
 {
 	std::map<u16,std::string>::const_iterator it = m_idName.find(id);
-	if(it==m_idName.end()) throw std::exception("Group doesn't exist"); //TODO: some other exception
+	if(it==m_idName.end()) throw std::exception("Clan doesn't exist"); //TODO: some other exception
 	return it->second;
 }
 
-const std::string& GroupsManager::groupNameNoEx(u16 id) const
+const std::string& ClansManager::clanNameNoEx(u16 id) const
 {
 	try{
-		return groupName(id);
+		return clanName(id);
 	}catch(std::exception& e){
 		static const std::string nullstr("?");
 		return nullstr;
 	}
 }
 
-const std::map<u16,std::string>& GroupsManager::getNames() const
+const std::map<u16,std::string>& ClansManager::getNames() const
 {
 	return m_idName;
 }
 
-void GroupsManager::setGroup(u16 id, const std::string& name)
+void ClansManager::setClan(u16 id, const std::string& name)
 {
 	m_idName[id] = name;
 	m_nameId[name] = id;
 }
 
 
-void GroupsManager::save(Settings& args) const
+void ClansManager::save(Settings& args) const
 {
-	args.setS32("groups-maxId",m_maxId);
+	args.setS32("clans-maxId",m_maxId);
 	
 	std::ostringstream os;
 	for(std::map<u16,std::string>::const_iterator it=m_idName.begin(); it!=m_idName.end(); it++){
 		os << it->first << ' ' << it->second << ' ';
 	}
-	args.set("groups-names",os.str());
+	args.set("clans-names",os.str());
 
 	std::ostringstream os2;
 	for(std::set<u16>::const_iterator it=m_deleted.begin(); it!=m_deleted.end(); it++){
 		os2 << *it << ' ';
 	}
-	args.set("groups-deleted",os2.str());
+	args.set("clans-deleted",os2.str());
 }
 
-void GroupsManager::load(Settings& args)
+void ClansManager::load(Settings& args)
 {
 	try{
-		m_maxId = args.getS32("groups-maxId");
+		m_maxId = args.getS32("clans-maxId");
 		
-		std::string s = args.get("groups-names");
+		std::string s = args.get("clans-names");
 		std::istringstream is(s);
 		while(is.good() && !is.eof()){
 			u16 id;
@@ -107,7 +107,7 @@ void GroupsManager::load(Settings& args)
 			m_nameId[name] = id;
 		}
 
-		s = args.get("groups-deleted");
+		s = args.get("clans-deleted");
 		std::istringstream is2(s);
 		while(is2.good() && !is2.eof()){
 			u16 id;

@@ -2010,6 +2010,14 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 					L"Your client is too old. Please upgrade.");
 			return;
 		}
+		
+		/* Uhh... this should actually be a warning but let's do it like this */
+		if(net_proto_version < 2)
+		{
+			SendAccessDenied(m_con, peer_id,
+					L"Your client is too old. Please upgrade.");
+			return;
+		}
 
 		/*
 			Set up player
@@ -2182,12 +2190,12 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		// Send player items to all players
 		SendPlayerItems();
 
-		// Send HP & groups //j
+		// Send HP & clans //j
 		{
 			Player *player = m_env.getPlayer(peer_id);
 			SendPlayerHP(player);
-			SendPlayerGroup(player,false,0);
-			SendGroupNames(player->peer_id,m_env.groupsManager.getNames());
+			SendPlayerClan(player,false,0);
+			SendClanNames(player->peer_id,m_env.clansManager.getNames());
 		}
 		
 		// Send time of day
@@ -3174,33 +3182,33 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		
 			//j: set ownership
 
-			std::string groupName = text;
+			std::string clanName = text;
 
-			/*int i_group = atoi(text.c_str()+1);
-			if(i_group<0 || i_group > 0xFFFF){
-				derr_server<<"Wrong group number"<<std::endl;
+			/*int i_clan = atoi(text.c_str()+1);
+			if(i_clan<0 || i_clan > 0xFFFF){
+				derr_server<<"Wrong clan number"<<std::endl;
 				return;
 			}
-			u16 group = (u16)i_group;*/
+			u16 clan = (u16)i_clan;*/
 
-			bool nullgroup = false;
-			if(groupName == "#" || groupName == "" || groupName == "nobody") nullgroup = true;
+			bool nullclan = false;
+			if(clanName == "#" || clanName == "" || clanName == "nobody") nullclan = true;
 
-			u16 group = 0;
-			if(!nullgroup){
-				group = m_env.groupsManager.groupId(groupName);
-				if(!group){
-					derr_server<<"Wrong group name"<<std::endl;
+			u16 clan = 0;
+			if(!nullclan){
+				clan = m_env.clansManager.clanId(clanName);
+				if(!clan){
+					derr_server<<"Wrong clan name"<<std::endl;
 					return;
 				}
 			}
 
-			//player must be in this group or group is null
-			if(group && player->groups.find(group) == player->groups.end())
+			//player must be in this clan or clan is null
+			if(clan && player->clans.find(clan) == player->clans.end())
 				return;
 
-			block->setOwner(group);
-			if(group) text = "Property of " + groupName;
+			block->setOwner(clan);
+			if(clan) text = "Property of " + clanName;
 			else text = "Property of nobody";
 		} else if( node.getContent() == CONTENT_TELEPORT ){
 
@@ -3589,6 +3597,13 @@ Inventory* Server::getInventory(InventoryContext *c, std::string id)
 		p.X = stoi(fn.next(","));
 		p.Y = stoi(fn.next(","));
 		p.Z = stoi(fn.next(","));
+
+		//j
+		if(!c->current_player->canModify(&m_env.getMap(),NULL,NULL,&p)){
+			dstream<<__FUNCTION_NAME<<": player isn't owner of the block "<<id<<std::endl;
+			return NULL;
+		}
+
 		NodeMetadata *meta = m_env.getMap().getNodeMetadata(p);
 		if(meta)
 			return meta->getInventory();
@@ -3966,7 +3981,7 @@ void Server::SendMovePlayer(Player *player)
 }
 
 //j
-void Server::SendPlayerGroup(Player *player, bool kick = false, u16 group = 0)
+void Server::SendPlayerClan(Player *player, bool kick = false, u16 clan = 0)
 {
 	DSTACK(__FUNCTION_NAME);
 	std::ostringstream os(std::ios_base::binary);
@@ -3975,25 +3990,25 @@ void Server::SendPlayerGroup(Player *player, bool kick = false, u16 group = 0)
 		u16 count
 
 		u8 bool kick
-		u16 group
+		u16 clan
 		...
 	*/
 	writeU16(os, TOCLIENT_PLAYER_GROUP);
-	if(group>0){
+	if(clan>0){
 		writeU16(os,1);
 		writeU8(os,kick);
-		writeU16(os,group);
+		writeU16(os,clan);
 		{
 			dstream<<"Server sending TOCLIENT_PLAYER_GROUP - "
 				<< ((kick)?"KICK from ":"JOIN to ")
-				<< group
+				<< clan
 				<<std::endl;
 		}
 	}else{
-		//send all groups
-		u16 count = (u16)player->groups.size();
+		//send all clans
+		u16 count = (u16)player->clans.size();
 		writeU16(os,count);
-		for(std::set<int>::const_iterator it=player->groups.begin(); it!=player->groups.end(); it++){
+		for(std::set<int>::const_iterator it=player->clans.begin(); it!=player->clans.end(); it++){
 			writeU8(os,false);
 			writeU16(os,*it);
 		}
@@ -4008,13 +4023,13 @@ void Server::SendPlayerGroup(Player *player, bool kick = false, u16 group = 0)
 
 
 //j
-void writeGroupIdName(std::ostringstream& os, u16 id, const std::string& name){
+void writeClanIdName(std::ostringstream& os, u16 id, const std::string& name){
 	/*
-		u16		group id
-		u8		group name lenght
-		string	group name
+		u16		clan id
+		u8		clan name lenght
+		string	clan name
 	*/
-	if(name.length() > 0xFFFF) throw std::exception("too long group name"); //exception?
+	if(name.length() > 0xFFFF) throw std::exception("too long clan name"); //exception?
 
 	writeU16(os,id);
 
@@ -4026,7 +4041,7 @@ void writeGroupIdName(std::ostringstream& os, u16 id, const std::string& name){
 }
 
 //j
-void Server::SendGroupName(u16 peer_id, u16 group, const std::string& name)
+void Server::SendClanName(u16 peer_id, u16 clan, const std::string& name)
 {
 	DSTACK(__FUNCTION_NAME);
 	std::ostringstream os(std::ios_base::binary);
@@ -4034,18 +4049,18 @@ void Server::SendGroupName(u16 peer_id, u16 group, const std::string& name)
 		u16		command
 		u16		count
 
-		u16		group id
-		u8		group name lenght
-		string	group name
+		u16		clan id
+		u8		clan name lenght
+		string	clan name
 		...
 	*/
 	writeU16(os, TOCLIENT_GROUP_NAMES);
-	if(group>0){
+	if(clan>0){
 		writeU16(os,1);
-		writeGroupIdName(os,group,name);
+		writeClanIdName(os,clan,name);
 		{
 			dstream<<"Server sending TOCLIENT_GROUP_NAMES - "
-				<< "id=" << group
+				<< "id=" << clan
 				<< ", name=" << name
 				<<std::endl;
 		}
@@ -4059,19 +4074,19 @@ void Server::SendGroupName(u16 peer_id, u16 group, const std::string& name)
 }
 
 //j
-void Server::SendGroupNames(u16 peer_id, const std::map<u16,std::string>& groups)
+void Server::SendClanNames(u16 peer_id, const std::map<u16,std::string>& clans)
 {
 	DSTACK(__FUNCTION_NAME);
 	/*
 		u16		command
 		u16		count
 
-		u16		group id
-		u8		group name lenght
-		string	group name
+		u16		clan id
+		u8		clan name lenght
+		string	clan name
 		...
 	*/
-	u16 count = (u16)groups.size();
+	u16 count = (u16)clans.size();
 
 	if(count==0) return;
 
@@ -4079,8 +4094,8 @@ void Server::SendGroupNames(u16 peer_id, const std::map<u16,std::string>& groups
 	writeU16(os, TOCLIENT_GROUP_NAMES);
 	writeU16(os,count);
 
-	for(std::map<u16,std::string>::const_iterator it=groups.begin(); it!=groups.end(); it++)
-		writeGroupIdName(os,it->first,it->second);
+	for(std::map<u16,std::string>::const_iterator it=clans.begin(); it!=clans.end(); it++)
+		writeClanIdName(os,it->first,it->second);
 
 	dstream<<"Server sending TOCLIENT_GROUP_NAMES - "
 		<< "count=" << count
@@ -4094,7 +4109,7 @@ void Server::SendGroupNames(u16 peer_id, const std::map<u16,std::string>& groups
 }
 
 //j
-void Server::BroadcastPlayerGroup(u16 group, const std::string& name)
+void Server::BroadcastPlayerClan(u16 clan, const std::string& name)
 {
 	for(core::map<u16, RemoteClient*>::Iterator
 		i = m_clients.getIterator();
@@ -4106,7 +4121,7 @@ void Server::BroadcastPlayerGroup(u16 group, const std::string& name)
 		if(client->serialization_version == SER_FMT_VER_INVALID)
 			continue;
 
-		SendGroupName(client->peer_id,group,name);
+		SendClanName(client->peer_id,clan,name);
 	}
 }
 

@@ -159,8 +159,8 @@ public:
 	u16 peer_id;
 
 	//j
-	std::set<int> groups;
-	u16 groupOwner;
+	std::set<int> clans;
+	u16 clanOwner;
 	bool canModify(Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const;
 
 protected:

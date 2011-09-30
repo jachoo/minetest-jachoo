@@ -236,7 +236,7 @@ void cmd_banunban(std::wostringstream &os, ServerCommandContext *ctx)
 }
 
 //j
-void cmd_groupNew(std::wostringstream &os,
+void cmd_clanNew(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
 	if(ctx->parms.size() != 2)
@@ -245,24 +245,24 @@ void cmd_groupNew(std::wostringstream &os,
 		return;
 	}
 
-	if(ctx->player->groupOwner){
-		os<< L"-!- Error - you can define only one group!";
+	if(ctx->player->clanOwner){
+		os<< L"-!- Error - you can define only one clan!";
 		return;
 	}
 
-	std::string groupName = wide_to_narrow(ctx->parms[1]);
+	std::string clanName = wide_to_narrow(ctx->parms[1]);
 
-	u16 groupId = ctx->env->groupsManager.newGroup(groupName,ctx->player);
+	u16 clanId = ctx->env->clansManager.newClan(clanName,ctx->player);
 
-	if(groupId>0){
-		ctx->server->BroadcastPlayerGroup(groupId,groupName);
-		ctx->server->SendPlayerGroup(ctx->player,false,groupId);
-		os<< L"-!- Group '"<<ctx->parms[1]<<"' added.";
+	if(clanId>0){
+		ctx->server->BroadcastPlayerClan(clanId,clanName);
+		ctx->server->SendPlayerClan(ctx->player,false,clanId);
+		os<< L"-!- Clan '"<<ctx->parms[1]<<"' added.";
 	}
-	else os<< L"-!- Error - group '"<<ctx->parms[1]<<"' NOT added.";
+	else os<< L"-!- Error - clan '"<<ctx->parms[1]<<"' NOT added.";
 }
 
-void cmd_groupJoin(std::wostringstream &os,
+void cmd_clanJoin(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
 	if(ctx->parms.size() != 3)
@@ -272,35 +272,35 @@ void cmd_groupJoin(std::wostringstream &os,
 	}
 
 	try{
-		/*int group_i = stoi(ctx->parms[1]);
-		if( group_i < 0 || group_i > 0xFFFF ) throw 0;
-		u16 group = (u16)group_i;*/
+		/*int clan_i = stoi(ctx->parms[1]);
+		if( clan_i < 0 || clan_i > 0xFFFF ) throw 0;
+		u16 clan = (u16)clan_i;*/
 
-		std::string groupName = wide_to_narrow(ctx->parms[1]);
-		u16 group = ctx->env->groupsManager.groupId(groupName);
-		if(!group) throw 0;
+		std::string clanName = wide_to_narrow(ctx->parms[1]);
+		u16 clan = ctx->env->clansManager.clanId(clanName);
+		if(!clan) throw 0;
 
 		std::string playerName = wide_to_narrow(ctx->parms[2]);
 		if(playerName.length()==0) throw 0;
 
-		if(ctx->player->groups.find(group) == ctx->player->groups.end()) throw 0; //j!
+		if(ctx->player->clans.find(clan) == ctx->player->clans.end()) throw 0; //j!
 
 		Player* player = ctx->env->getPlayer(playerName.c_str());
 
 		if(!player) throw 0;
 
-		player->groups.insert(group);
-		ctx->server->SendPlayerGroup(player,false,group);
+		player->clans.insert(clan);
+		ctx->server->SendPlayerClan(player,false,clan);
 
-		os<< L"-!- group-join - success";
-		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" joined group " + ctx->parms[1]);
+		os<< L"-!- clan-join - success";
+		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" joined clan " + ctx->parms[1]);
 	}catch(...){
-		os<< L"-!- Error - player not added to group.";
+		os<< L"-!- Error - player not added to clan.";
 	}
 	
 }
 
-void cmd_groupKick(std::wostringstream &os,
+void cmd_clanKick(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
 	if(ctx->parms.size() != 3)
@@ -310,30 +310,30 @@ void cmd_groupKick(std::wostringstream &os,
 	}
 
 	try{
-		/*int group_i = stoi(ctx->parms[1]);
-		if( group_i < 0 || group_i > 0xFFFF ) throw 0;
-		u16 group = (u16)group_i;*/
+		/*int clan_i = stoi(ctx->parms[1]);
+		if( clan_i < 0 || clan_i > 0xFFFF ) throw 0;
+		u16 clan = (u16)clan_i;*/
 		
-		std::string groupName = wide_to_narrow(ctx->parms[1]);
-		u16 group = ctx->env->groupsManager.groupId(groupName);
-		if(!group) throw 0; //group must exist
+		std::string clanName = wide_to_narrow(ctx->parms[1]);
+		u16 clan = ctx->env->clansManager.clanId(clanName);
+		if(!clan) throw 0; //clan must exist
 
-		if(ctx->player->groups.find(group) == ctx->player->groups.end()) throw 0; //sender must be in this group
+		if(ctx->player->clans.find(clan) == ctx->player->clans.end()) throw 0; //sender must be in this clan
 
 		std::string playerName = wide_to_narrow(ctx->parms[2]);
 		if(playerName.length()==0) throw 0;
 		Player* player = ctx->env->getPlayer(playerName.c_str());
 		if(!player) throw 0; //player must exist
 
-		if(player->groupOwner == group) throw 0; //player can't be owner of that group
+		if(player->clanOwner == clan) throw 0; //player can't be owner of that clan
 
-		player->groups.erase(group);
-		ctx->server->SendPlayerGroup(player,true,group);
+		player->clans.erase(clan);
+		ctx->server->SendPlayerClan(player,true,clan);
 
-		os<< L"-!- group-kick - success";
-		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" kicked from group " + ctx->parms[1]);
+		os<< L"-!- clan-kick - success";
+		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" kicked from clan " + ctx->parms[1]);
 	}catch(...){
-		os<< L"-!- Error - player not kicked from group.";
+		os<< L"-!- Error - player not kicked from clan.";
 	}
 	
 }
@@ -398,17 +398,17 @@ std::wstring processServerCommand(ServerCommandContext *ctx)
 	{
 		cmd_me(os, ctx);
 	}
-		else if(ctx->parms[0] == L"group-new")
+		else if(ctx->parms[0] == L"clan-new")
 	{
-		cmd_groupNew(os, ctx);
+		cmd_clanNew(os, ctx);
 	}
-	else if(ctx->parms[0] == L"group-join")
+	else if(ctx->parms[0] == L"clan-join")
 	{
-		cmd_groupJoin(os, ctx);
+		cmd_clanJoin(os, ctx);
 	}
-	else if(ctx->parms[0] == L"group-kick")
+	else if(ctx->parms[0] == L"clan-kick")
 	{
-		cmd_groupKick(os, ctx);
+		cmd_clanKick(os, ctx);
 	}
 	else
 	{

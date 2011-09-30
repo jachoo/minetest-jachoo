@@ -37,7 +37,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <ostream>
 #include "utility.h"
 #include "activeobject.h"
-#include "groups.h"
+#include "clans.h"
 
 class Server;
 class ActiveBlockModifier;
@@ -85,7 +85,7 @@ public:
 	}
 
 	//j
-	GroupsManager groupsManager;
+	ClansManager clansManager;
 protected:
 	// peer_ids in here should be unique, except that there may be many 0s
 	core::list<Player*> m_players;
@@ -156,8 +156,8 @@ public:
 	void deSerializePlayers(const std::string &savedir);
 
 	//j
-	void serializeGroups(const std::string &savedir);
-	void deSerializeGroups(const std::string &savedir);
+	void serializeClans(const std::string &savedir);
+	void deSerializeClans(const std::string &savedir);
 
 	/*
 		Save and load time of day and game timer

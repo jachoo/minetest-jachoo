@@ -484,7 +484,7 @@ void ServerEnvironment::saveMeta(const std::string &savedir)
 	Settings args;
 	args.setU64("game_time", m_game_time);
 	args.setU64("time_of_day", getTimeOfDay());
-	groupsManager.save(args);
+	clansManager.save(args);
 	args.writeLines(os);
 	os<<"EnvArgsEnd\n";
 }
@@ -531,7 +531,7 @@ void ServerEnvironment::loadMeta(const std::string &savedir)
 		m_time_of_day = 9000;
 	}
 	try{
-		groupsManager.load(args);
+		clansManager.load(args);
 	}catch(SettingNotFoundException &e){
 		// This is not as important
 	}

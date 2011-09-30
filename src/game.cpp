@@ -1072,7 +1072,7 @@ void the_game(
 			core::rect<s32>(0,0,500,text_height*2+5) + v2s32(100,200), //j
 			false, false, guiroot);
 
-	// Ownership info (groups) //j
+	// Ownership info (clans) //j
 	gui::IGUIStaticText *guitext_ownership = guienv->addStaticText(
 			L"",
 			core::rect<s32>(0,0,200,text_height+5) + v2s32(100,450), //j
@@ -1841,21 +1841,21 @@ void the_game(
 			//j
 			Player* player = client.getEnv()->getLocalPlayer();
 			Map * map = &client.getEnv()->getMap();
-			GroupsManager* groupsManager = &client.getEnv()->groupsManager;
+			ClansManager* clansManager = &client.getEnv()->clansManager;
 			MapBlock* block = map->getBlockNoCreateNoEx(getNodeBlockPos(nodepos));
 			MapBlock* block2 = map->getBlockNoCreateNoEx(getNodeBlockPos(neighbourpos));
 			u16 block_owner = block ? block->getOwner() : 0;
 			u16 block2_owner = block2 ? block2->getOwner() : 0;
 
 			if(block_owner || block2_owner )
-				ownershiptext = L"Property of ";
+				ownershiptext = L"Property of clan ";
 
 			if(block_owner)
-				ownershiptext += narrow_to_wide(groupsManager->groupNameNoEx(block_owner));
+				ownershiptext += narrow_to_wide(clansManager->clanNameNoEx(block_owner));
 			
 			if(block2_owner && block2_owner != block_owner){
 				if(block_owner) ownershiptext += L" and ";
-				ownershiptext += narrow_to_wide(groupsManager->groupNameNoEx(block2_owner));
+				ownershiptext += narrow_to_wide(clansManager->clanNameNoEx(block2_owner));
 			}
 
 			bool canModifyNeighbour = player->canModify(NULL,block2,NULL,NULL);
@@ -1865,8 +1865,8 @@ void the_game(
 
 			//jTODO: remove it
 			/*ownershiptext += L"     ";
-			for(std::set<int>::const_iterator it=player->groups.begin(); it!=player->groups.end(); it++){
-				ownershiptext += L"," + narrow_to_wide(itos(*it)) + L":" + narrow_to_wide(groupsManager->groupNameNoEx(*it));
+			for(std::set<int>::const_iterator it=player->clans.begin(); it!=player->clans.end(); it++){
+				ownershiptext += L"," + narrow_to_wide(itos(*it)) + L":" + narrow_to_wide(clansManager->clanNameNoEx(*it));
 			}*/
 			
 			/*

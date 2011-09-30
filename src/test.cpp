@@ -1062,6 +1062,7 @@ struct TestConnection
 
 void run_tests()
 {
+	return; //j
 	DSTACK(__FUNCTION_NAME);
 	dstream<<"run_tests() started"<<std::endl;
 	TEST(TestUtilities);

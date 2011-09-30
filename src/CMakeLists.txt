@@ -74,7 +74,7 @@ else()
 		endif(APPLE)
 	endif(BUILD_CLIENT)
 	find_package(ZLIB REQUIRED)
-	set(PLATFORM_LIBS -lpthread)
+	set(PLATFORM_LIBS -lpthread ${CMAKE_DL_LIBS})
 	#set(CLIENT_PLATFORM_LIBS -lXxf86vm)
 	# This way Xxf86vm is found on OpenBSD too
 	find_library(XXF86VM_LIBRARY Xxf86vm)
@@ -128,7 +128,7 @@ set(common_SRCS
 	sha1.cpp
 	base64.cpp
 	ban.cpp
-	groups.cpp
+	clans.cpp
 )
 
 # This gives us the icon
@@ -189,10 +189,10 @@ if(BUILD_CLIENT)
 		${PNG_LIBRARIES}
 		${X11_LIBRARIES}
 		${GETTEXT_LIBRARY}
-		${PLATFORM_LIBS}
-		${CLIENT_PLATFORM_LIBS}
 		${JTHREAD_LIBRARY}
 		${SQLITE3_LIBRARY}
+		${PLATFORM_LIBS}
+		${CLIENT_PLATFORM_LIBS}
 	)
 endif(BUILD_CLIENT)
 
@@ -201,9 +201,9 @@ if(BUILD_SERVER)
 	target_link_libraries(
 		${PROJECT_NAME}server
 		${ZLIB_LIBRARIES}
-		${PLATFORM_LIBS}
 		${JTHREAD_LIBRARY}
 		${SQLITE3_LIBRARY}
+		${PLATFORM_LIBS}
 	)
 endif(BUILD_SERVER)
 

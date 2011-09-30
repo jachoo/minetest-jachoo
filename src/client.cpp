@@ -431,7 +431,7 @@ void Client::step(float dtime)
 			snprintf((char*)&data[23], PASSWORD_SIZE, "%s", m_password.c_str());
 			
 			// This should be incremented in each version
-			writeU16(&data[51], 1);
+			writeU16(&data[51], 2);
 
 			// Send as unreliable
 			Send(0, data, false);
@@ -1602,20 +1602,20 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 		u16 count
 
 		u8 bool kick
-		u16 group
+		u16 clan
 		...
 	*/
 		
 		const u16 count = readU16(is);
 		for(u16 i=0; i<count; i++){
 			const bool kick = readU8(is);
-			const u16 group = readU16(is);
+			const u16 clan = readU16(is);
 			if(kick){
-				player->groups.erase(group);
-				std::cout << "Player kicked from group " << group << std::endl;
+				player->clans.erase(clan);
+				std::cout << "Player kicked from clan " << clan << std::endl;
 			}else{
-				player->groups.insert(group);
-				std::cout << "Player joined to group " << group << std::endl;
+				player->clans.insert(clan);
+				std::cout << "Player joined to clan " << clan << std::endl;
 			}
 		}
 		
@@ -1633,9 +1633,9 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 			u16		command
 			u16		count
 
-			u16		group id
-			u8		group name lenght
-			string	group name
+			u16		clan id
+			u8		clan name lenght
+			string	clan name
 			...
 		*/
 		
@@ -1646,7 +1646,7 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 			std::string name;
 			for(u8 j=0; j<len; j++)
 				name += (char)readU8(is);
-			m_env.groupsManager.setGroup(id,name);
+			m_env.clansManager.setClan(id,name);
 		}
 		
 		dstream<<"Client got TOCLIENT_GROUP_NAMES - count="

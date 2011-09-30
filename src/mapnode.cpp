@@ -67,6 +67,10 @@ void ContentFeatures::setInventoryTextureCube(std::string top,
 {
 	if(g_texturesource == NULL)
 		return;
+
+	//jFIXME: usunac to
+	inventory_texture = g_texturesource->getTextureRaw("[noalpha:"+top+"^[forcesingle");
+	return;
 	
 	str_replace_char(top, '^', '&');
 	str_replace_char(left, '^', '&');

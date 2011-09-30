@@ -427,10 +427,10 @@ public:
 	void SendMovePlayer(Player *player);
 	void SendChatMessage(u16 peer_id, const std::wstring &message);
 	void BroadcastChatMessage(const std::wstring &message); //j - moved from private
-	void SendPlayerGroup(Player *player, bool kick, u16 group); //j; if group=0, all groups are sent
-	void SendGroupName(u16 peer_id, u16 group, const std::string& name); //j
-	void SendGroupNames(u16 peer_id, const std::map<u16,std::string>& groups); //j
-	void BroadcastPlayerGroup(u16 group, const std::string& name); //j
+	void SendPlayerClan(Player *player, bool kick, u16 clan); //j; if clan=0, all clans are sent
+	void SendClanName(u16 peer_id, u16 clan, const std::string& name); //j
+	void SendClanNames(u16 peer_id, const std::map<u16,std::string>& clans); //j
+	void BroadcastPlayerClan(u16 clan, const std::string& name); //j
 	
 	u64 getPlayerAuthPrivs(const std::string &name)
 	{

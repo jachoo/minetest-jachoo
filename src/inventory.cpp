@@ -823,7 +823,7 @@ void IMoveAction::apply(InventoryContext *c, InventoryManager *mgr)
 	if(!inv_from || !inv_to)
 	{
 		dstream<<__FUNCTION_NAME<<": Operation not allowed "
-				<<"(inventories not found)"<<std::endl;
+				<<"(inventories not found or ownership error)"<<std::endl;
 		return;
 	}
 

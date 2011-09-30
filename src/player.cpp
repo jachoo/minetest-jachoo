@@ -40,7 +40,7 @@ Player::Player():
 	m_yaw(0),
 	m_speed(0,0,0),
 	m_position(0,0,0),
-	groupOwner(0)
+	clanOwner(0)
 {
 	updateName("<not set>");
 	resetInventory();
@@ -114,11 +114,11 @@ void Player::serialize(std::ostream &os)
 	args.setBool("craftresult_is_preview", craftresult_is_preview);
 	args.setS32("hp", hp);
 	//j
-	std::ostringstream groupsStrStream;
-	for(std::set<int>::const_iterator it=groups.begin(); it!=groups.end(); it++)
-		groupsStrStream << *it << ' ';
-	args.set("groups",groupsStrStream.str());
-	args.setS32("groupOwner",groupOwner);
+	std::ostringstream clansStrStream;
+	for(std::set<int>::const_iterator it=clans.begin(); it!=clans.end(); it++)
+		clansStrStream << *it << ' ';
+	args.set("clans",clansStrStream.str());
+	args.setS32("clanOwner",clanOwner);
 
 	args.writeLines(os);
 
@@ -185,16 +185,16 @@ void Player::deSerialize(std::istream &is)
 	}*/
 	//j
 	try{
-		std::string groupsStr = args.get("groups");
-		std::istringstream groupsStrStream(groupsStr);
-		while(groupsStrStream.good() && !groupsStrStream.eof()){
+		std::string clansStr = args.get("clans");
+		std::istringstream clansStrStream(clansStr);
+		while(clansStrStream.good() && !clansStrStream.eof()){
 			std::string s;
-			groupsStrStream >> s;
+			clansStrStream >> s;
 			if(s.length() == 0) continue;
 			int i = atoi(s.c_str());
-			if(i>=0 && i<=0xFFFF) groups.insert(i);
+			if(i>=0 && i<=0xFFFF) clans.insert(i);
 		}
-		groupOwner = args.getU16("groupOwner");
+		clanOwner = args.getU16("clanOwner");
 	}catch(SettingNotFoundException& e){}
 
 	inventory.deSerialize(is);
@@ -203,7 +203,7 @@ void Player::deSerialize(std::istream &is)
 //j
 static inline bool canModifyNoCheck(const Player* player, const MapBlock* block) {
 	u16 owner = block->getOwner();
-	return owner == 0 || player->groups.find(owner) != player->groups.end();
+	return owner == 0 || player->clans.find(owner) != player->clans.end();
 }
 
 static inline bool canModifyCheck(const Player* player, const MapBlock* block) {

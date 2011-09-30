@@ -18,11 +18,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 /*
-	Groups.h - author: jachoo <g.j.g@interia.pl>
+	Clans.h - author: jachoo <g.j.g@interia.pl>
 */
 
-#ifndef GROUPS_HEADER
-#define GROUPS_HEADER
+#ifndef CLANS_HEADER
+#define CLANS_HEADER
 
 #include "common_irrlicht.h"
 #include "utility.h"
@@ -32,24 +32,24 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <set>
 #include <string>
 
-class GroupsManager {
+class ClansManager {
 public:
 
-	GroupsManager();
+	ClansManager();
 
-	u16 newGroup(const std::string& name, Player* player);
+	u16 newClan(const std::string& name, Player* player);
 	
-	bool groupExists(u16 id) const;
-	bool groupExists(const std::string& name) const;
+	bool clanExists(u16 id) const;
+	bool clanExists(const std::string& name) const;
 
-	bool groupDeleted(u16 id) const;
+	bool clanDeleted(u16 id) const;
 
-	u16 groupId(const std::string& name) const;
-	const std::string& groupName(u16 id) const; //throws if not existing group
-	const std::string& groupNameNoEx(u16 id) const;
+	u16 clanId(const std::string& name) const;
+	const std::string& clanName(u16 id) const; //throws if not existing clan
+	const std::string& clanNameNoEx(u16 id) const;
 	
 	const std::map<u16,std::string>& getNames() const;
-	void setGroup(u16 id, const std::string& name);
+	void setClan(u16 id, const std::string& name);
 
 	void save(Settings& args) const;
 	void load(Settings& args);
