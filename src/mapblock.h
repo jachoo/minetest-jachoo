@@ -34,6 +34,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "nodemetadata.h"
 #include "staticobject.h"
 #include "mapblock_nodemod.h"
+#include "clans.h" //j
 #ifndef SERVER
 	#include "mapblock_mesh.h"
 #endif
@@ -598,6 +599,12 @@ public:
 	u16 getOwner() const
 	{
 		return m_owner;
+	}
+	void actualizeOwner(const ClansManager* clansManager)
+	{
+		if(m_owner==0) return;
+		if(clansManager==NULL)return; //???
+		if(clansManager->clanDeleted(m_owner)) m_owner = 0;
 	}
 
 

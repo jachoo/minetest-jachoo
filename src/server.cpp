@@ -2382,7 +2382,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		}
 
 		//j
-		if( !player->canModify(NULL,block,NULL,NULL) )
+		if( !player->canModify(&m_env.clansManager,NULL,block,NULL,NULL) )
 		{
 			derr_server<<"Player isn't owner of a block"<<std::endl;
 			return;
@@ -2584,7 +2584,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		u16 item_i = readU16(&data[15]);
 
 		//j
-		if( !player->canModify(&m_env.getMap(),NULL,NULL,&p_under) || !player->canModify(&m_env.getMap(),NULL,NULL,&p_over) )
+		if( !player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_under) || !player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_over) )
 		{
 			derr_server<<"Player isn't owner of a block"<<std::endl;
 			RemoteClient *client = getClient(peer_id);
@@ -3109,7 +3109,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		}
 
 		//j
-		if( !player->canModify(NULL,block,NULL,NULL) )
+		if( !player->canModify(&m_env.clansManager,NULL,block,NULL,NULL) )
 		{
 			derr_server<<"Player isn't owner of a block"<<std::endl;
 			return;
@@ -3169,7 +3169,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		MapBlock *block = m_env.getMap().getBlockNoCreateNoEx(blockpos);
 
 		//j
-		if( !player->canModify(NULL,block,NULL,NULL) )
+		if( !player->canModify(&m_env.clansManager,NULL,block,NULL,NULL) )
 		{
 			derr_server<<"Player isn't owner of a block"<<std::endl;
 			return;
@@ -3599,7 +3599,7 @@ Inventory* Server::getInventory(InventoryContext *c, std::string id)
 		p.Z = stoi(fn.next(","));
 
 		//j
-		if(!c->current_player->canModify(&m_env.getMap(),NULL,NULL,&p)){
+		if(!c->current_player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p)){
 			dstream<<__FUNCTION_NAME<<": player isn't owner of the block "<<id<<std::endl;
 			return NULL;
 		}
@@ -3993,13 +3993,13 @@ void Server::SendPlayerClan(Player *player, bool kick = false, u16 clan = 0)
 		u16 clan
 		...
 	*/
-	writeU16(os, TOCLIENT_PLAYER_GROUP);
+	writeU16(os, TOCLIENT_PLAYER_CLAN);
 	if(clan>0){
 		writeU16(os,1);
 		writeU8(os,kick);
 		writeU16(os,clan);
 		{
-			dstream<<"Server sending TOCLIENT_PLAYER_GROUP - "
+			dstream<<"Server sending TOCLIENT_PLAYER_CLAN - "
 				<< ((kick)?"KICK from ":"JOIN to ")
 				<< clan
 				<<std::endl;
@@ -4054,12 +4054,12 @@ void Server::SendClanName(u16 peer_id, u16 clan, const std::string& name)
 		string	clan name
 		...
 	*/
-	writeU16(os, TOCLIENT_GROUP_NAMES);
+	writeU16(os, TOCLIENT_CLAN_NAMES);
 	if(clan>0){
 		writeU16(os,1);
 		writeClanIdName(os,clan,name);
 		{
-			dstream<<"Server sending TOCLIENT_GROUP_NAMES - "
+			dstream<<"Server sending TOCLIENT_CLAN_NAMES - "
 				<< "id=" << clan
 				<< ", name=" << name
 				<<std::endl;
@@ -4091,13 +4091,13 @@ void Server::SendClanNames(u16 peer_id, const std::map<u16,std::string>& clans)
 	if(count==0) return;
 
 	std::ostringstream os(std::ios_base::binary);
-	writeU16(os, TOCLIENT_GROUP_NAMES);
+	writeU16(os, TOCLIENT_CLAN_NAMES);
 	writeU16(os,count);
 
 	for(std::map<u16,std::string>::const_iterator it=clans.begin(); it!=clans.end(); it++)
 		writeClanIdName(os,it->first,it->second);
 
-	dstream<<"Server sending TOCLIENT_GROUP_NAMES - "
+	dstream<<"Server sending TOCLIENT_CLAN_NAMES - "
 		<< "count=" << count
 		<<std::endl;
 
@@ -4122,6 +4122,46 @@ void Server::BroadcastPlayerClan(u16 clan, const std::string& name)
 			continue;
 
 		SendClanName(client->peer_id,clan,name);
+	}
+}
+
+//j
+void Server::SendClanDeleted(u16 peer_id, u16 clan)
+{
+	DSTACK(__FUNCTION_NAME);
+	std::ostringstream os(std::ios_base::binary);
+	/*
+		u16		command
+		u16		clan id
+	*/
+	writeU16(os, TOCLIENT_CLAN_DELETED);
+	writeU16(os, clan);
+	
+	dstream<<"Server sending TOCLIENT_CLAN_DELETED - "
+				<< "id=" << clan
+				<<std::endl;
+
+	// Make data buffer
+	std::string s = os.str();
+	SharedBuffer<u8> data((u8*)s.c_str(), s.size());
+	// Send as reliable
+	m_con.Send(peer_id, 0, data, true);
+}
+
+//j
+void Server::BroadcastClanDeleted(u16 clan)
+{
+	for(core::map<u16, RemoteClient*>::Iterator
+		i = m_clients.getIterator();
+		i.atEnd() == false; i++)
+	{
+		// Get client and check that it is valid
+		RemoteClient *client = i.getNode()->getValue();
+		assert(client->peer_id == i.getNode()->getKey());
+		if(client->serialization_version == SER_FMT_VER_INVALID)
+			continue;
+
+		SendClanDeleted(client->peer_id,clan);
 	}
 }
 

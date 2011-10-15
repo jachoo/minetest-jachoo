@@ -174,25 +174,31 @@ enum ToClientCommand
 	*/
 	
 		
-	TOCLIENT_PLAYER_GROUP = 0x37,
+	TOCLIENT_PLAYER_CLAN = 0x37,
 	/*
 		u16 command
 		u16 count
 
 		u8 bool kick
-		u16 group
+		u16 clan
 		...
 	*/
 
-	TOCLIENT_GROUP_NAMES = 0x38,
+	TOCLIENT_CLAN_NAMES = 0x38,
 	/*
 		u16		command
 		u16		count
 
-		u16		group id
-		u8		group name lenght
-		string	group name
+		u16		clan id
+		u8		clan name lenght
+		string	clan name
 		...
+	*/
+
+	TOCLIENT_CLAN_DELETED = 0x39,
+	/*
+		u16		command
+		u16		clan id
 	*/
 
 };

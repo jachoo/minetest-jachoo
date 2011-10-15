@@ -431,6 +431,8 @@ public:
 	void SendClanName(u16 peer_id, u16 clan, const std::string& name); //j
 	void SendClanNames(u16 peer_id, const std::map<u16,std::string>& clans); //j
 	void BroadcastPlayerClan(u16 clan, const std::string& name); //j
+	void SendClanDeleted(u16 peer_id,u16 clan); //j
+	void BroadcastClanDeleted(u16 clan); //j
 	
 	u64 getPlayerAuthPrivs(const std::string &name)
 	{

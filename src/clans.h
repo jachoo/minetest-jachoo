@@ -26,11 +26,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "common_irrlicht.h"
 #include "utility.h"
-#include "player.h"
+//#include "player.h"
 
 #include <map>
 #include <set>
 #include <string>
+
+class Player;
+class Settings;
 
 class ClansManager {
 public:
@@ -38,6 +41,7 @@ public:
 	ClansManager();
 
 	u16 newClan(const std::string& name, Player* player);
+	void deleteClan(u16 id);
 	
 	bool clanExists(u16 id) const;
 	bool clanExists(const std::string& name) const;
@@ -53,8 +57,6 @@ public:
 
 	void save(Settings& args) const;
 	void load(Settings& args);
-
-	//serializacja - wysylanie
 
 protected:
 

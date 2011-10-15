@@ -161,7 +161,7 @@ public:
 	//j
 	std::set<int> clans;
 	u16 clanOwner;
-	bool canModify(Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const;
+	bool canModify(const ClansManager* clansManager, Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const;
 
 protected:
 	char m_name[PLAYERNAME_SIZE];

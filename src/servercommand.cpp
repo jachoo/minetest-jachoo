@@ -239,6 +239,12 @@ void cmd_banunban(std::wostringstream &os, ServerCommandContext *ctx)
 void cmd_clanNew(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
+	if((ctx->privs & PRIV_CLANS) == 0)
+	{
+		os<<L"-!- You don't have permission to do that";
+		return;
+	}
+
 	if(ctx->parms.size() != 2)
 	{
 		os<<L"-!- Bad parameter(s)";
@@ -262,9 +268,46 @@ void cmd_clanNew(std::wostringstream &os,
 	else os<< L"-!- Error - clan '"<<ctx->parms[1]<<"' NOT added.";
 }
 
+//j
+void cmd_clanDelete(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	if((ctx->privs & PRIV_CLANS) == 0)
+	{
+		os<<L"-!- You don't have permission to do that";
+		return;
+	}
+
+	if(ctx->parms.size() != 2)
+	{
+		os<<L"-!- Bad parameter(s)";
+		return;
+	}
+
+	std::string clanName = wide_to_narrow(ctx->parms[1]);
+	u16 clanId = ctx->env->clansManager.clanId(clanName);
+
+	if(!clanId || clanId != ctx->player->clanOwner){
+		os<< L"-!- Error - only clan's admin may delete it!";
+		return;
+	}
+
+	ctx->env->clansManager.deleteClan(clanId);
+	ctx->player->clanOwner = 0; //only clan owner can exec this func
+
+	ctx->server->BroadcastClanDeleted(clanId);
+	os<< L"-!- Clan '"<<ctx->parms[1]<<"' deleted.";
+}
+
 void cmd_clanJoin(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
+	if((ctx->privs & PRIV_CLANS) == 0)
+	{
+		os<<L"-!- You don't have permission to do that";
+		return;
+	}
+
 	if(ctx->parms.size() != 3)
 	{
 		os<<L"-!- Missing parameter(s)";
@@ -303,6 +346,12 @@ void cmd_clanJoin(std::wostringstream &os,
 void cmd_clanKick(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
+	if((ctx->privs & PRIV_CLANS) == 0)
+	{
+		os<<L"-!- You don't have permission to do that";
+		return;
+	}
+
 	if(ctx->parms.size() != 3)
 	{
 		os<<L"-!- Missing parameter(s)";
@@ -398,9 +447,13 @@ std::wstring processServerCommand(ServerCommandContext *ctx)
 	{
 		cmd_me(os, ctx);
 	}
-		else if(ctx->parms[0] == L"clan-new")
+	else if(ctx->parms[0] == L"clan-new")
 	{
 		cmd_clanNew(os, ctx);
+	}
+	else if(ctx->parms[0] == L"clan-delete")
+	{
+		cmd_clanDelete(os, ctx);
 	}
 	else if(ctx->parms[0] == L"clan-join")
 	{

@@ -1590,7 +1590,7 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 			}
 		}
 	}
-	else if(command == TOCLIENT_PLAYER_GROUP) //j
+	else if(command == TOCLIENT_PLAYER_CLAN) //j
 	{
 		std::string datastring((char*)&data[2], datasize-2);
 		std::istringstream is(datastring, std::ios_base::binary);
@@ -1619,12 +1619,12 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 			}
 		}
 		
-		dstream<<"Client got TOCLIENT_PLAYER_GROUP - count="
+		dstream<<"Client got TOCLIENT_PLAYER_CLAN - count="
 				<< count
 				<<std::endl;
 
 	}
-	else if(command == TOCLIENT_GROUP_NAMES) //j
+	else if(command == TOCLIENT_CLAN_NAMES) //j
 	{
 		std::string datastring((char*)&data[2], datasize-2);
 		std::istringstream is(datastring, std::ios_base::binary);
@@ -1649,8 +1649,33 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 			m_env.clansManager.setClan(id,name);
 		}
 		
-		dstream<<"Client got TOCLIENT_GROUP_NAMES - count="
+		dstream<<"Client got TOCLIENT_CLAN_NAMES - count="
 				<< count
+				<<std::endl;
+	}
+	else if(command == TOCLIENT_CLAN_DELETED) //j
+	{
+		std::string datastring((char*)&data[2], datasize-2);
+		std::istringstream is(datastring, std::ios_base::binary);
+		Player *player = m_env.getLocalPlayer();
+		assert(player != NULL);
+
+		/*
+		u16 command
+		u16 clan
+		*/
+		
+		const u16 clan = readU16(is);
+
+		if(clan>0){
+			player->clans.erase(clan);
+			if(player->clanOwner == clan) player->clanOwner = 0;
+			m_env.clansManager.deleteClan(clan);
+			std::cout << "Clan " << clan << "deleted" << std::endl;
+		}
+		
+		dstream<<"Client got TOCLIENT_CLAN_DELETED - clan="
+				<< clan
 				<<std::endl;
 	}
 	else

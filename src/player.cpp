@@ -201,22 +201,29 @@ void Player::deSerialize(std::istream &is)
 }
 
 //j
-static inline bool canModifyNoCheck(const Player* player, const MapBlock* block) {
+inline bool canModifyNoCheck(const Player* player, const MapBlock* block) {
 	u16 owner = block->getOwner();
 	return owner == 0 || player->clans.find(owner) != player->clans.end();
 }
 
-static inline bool canModifyCheck(const Player* player, const MapBlock* block) {
+inline bool canModifyCheck(const Player* player, const MapBlock* block) {
 	if(!player || !block) return false;
 	return canModifyNoCheck(player,block);
 }
 
 //j
-bool Player::canModify(Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const
+bool Player::canModify(const ClansManager* clansManager, Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const
 {
-	if(block) return canModifyNoCheck(this,block);
+	if(block){
+		block->actualizeOwner(clansManager);
+		return canModifyNoCheck(this,block);
+	}
 	if(!map) return false;
-	if(nodepos) return canModifyCheck(this,map->getBlockNoCreateNoEx( getNodeBlockPos(*nodepos) ));
+	if(nodepos){
+		MapBlock* bl = map->getBlockNoCreateNoEx( getNodeBlockPos(*nodepos) );
+		if(bl) bl->actualizeOwner(clansManager);
+		return canModifyCheck(this,bl);
+	}
 	//if(node) return node->
 	return false;
 }

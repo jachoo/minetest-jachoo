@@ -22,6 +22,14 @@ u16 ClansManager::newClan(const std::string& name, Player* player)
 	}
 	return id;
 }
+
+void ClansManager::deleteClan(u16 id)
+{
+	if(!clanExists(id))return;
+	m_deleted.insert(id);
+	m_nameId.erase( clanNameNoEx(id) );
+	m_idName.erase(id);
+}
 	
 bool ClansManager::clanExists(u16 id) const
 {

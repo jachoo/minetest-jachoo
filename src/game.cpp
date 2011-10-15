@@ -1858,8 +1858,8 @@ void the_game(
 				ownershiptext += narrow_to_wide(clansManager->clanNameNoEx(block2_owner));
 			}
 
-			bool canModifyNeighbour = player->canModify(NULL,block2,NULL,NULL);
-			bool canModify = canModifyNeighbour && player->canModify(NULL,block,NULL,NULL);
+			bool canModifyNeighbour = player->canModify(&client.getEnv()->clansManager,NULL,block2,NULL,NULL);
+			bool canModify = canModifyNeighbour && player->canModify(&client.getEnv()->clansManager,NULL,block,NULL,NULL);
 
 			if(!canModify) ownershiptext += narrow_to_wide(std::string(" [X] "));
 
