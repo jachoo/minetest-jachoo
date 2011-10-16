@@ -4029,7 +4029,7 @@ void writeClanIdName(std::ostringstream& os, u16 id, const std::string& name){
 		u8		clan name lenght
 		string	clan name
 	*/
-	if(name.length() > 0xFFFF) throw std::exception("too long clan name"); //exception?
+	if(name.length() > 0xFFFF) throw BaseException("too long clan name");
 
 	writeU16(os,id);
 

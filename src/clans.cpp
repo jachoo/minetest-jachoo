@@ -56,7 +56,7 @@ u16 ClansManager::clanId(const std::string& name) const
 const std::string& ClansManager::clanName(u16 id) const
 {
 	std::map<u16,std::string>::const_iterator it = m_idName.find(id);
-	if(it==m_idName.end()) throw std::exception("Clan doesn't exist"); //TODO: some other exception
+	if(it==m_idName.end()) throw BaseException("Clan doesn't exist");
 	return it->second;
 }
 
