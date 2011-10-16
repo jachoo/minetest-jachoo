@@ -25,6 +25,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "gettime.h"
 #include "sha1.h"
 #include "base64.h"
+#include "log.h"
 
 TimeTaker::TimeTaker(const char *name, u32 *result)
 {
@@ -47,7 +48,7 @@ u32 TimeTaker::stop(bool quiet)
 		else
 		{
 			if(quiet == false)
-				std::cout<<m_name<<" took "<<dtime<<"ms"<<std::endl;
+				infostream<<m_name<<" took "<<dtime<<"ms"<<std::endl;
 		}
 		m_running = false;
 		return dtime;
@@ -156,14 +157,50 @@ void mysrand(unsigned seed)
    next = seed;
 }
 
+int myrand_range(int min, int max)
+{
+	if(max-min > MYRAND_MAX)
+	{
+		errorstream<<"WARNING: myrand_range: max-min > MYRAND_MAX"<<std::endl;
+		assert(0);
+	}
+	if(min > max)
+	{
+		assert(0);
+		return max;
+	}
+	return (myrand()%(max-min+1))+min;
+}
+
+#ifndef SERVER
+// Sets the color of all vertices in the mesh
+void setMeshVerticesColor(scene::IMesh* mesh, video::SColor& color)
+{
+	if(mesh == NULL)
+		return;
+	
+	u16 mc = mesh->getMeshBufferCount();
+	for(u16 j=0; j<mc; j++)
+	{
+		scene::IMeshBuffer *buf = mesh->getMeshBuffer(j);
+		video::S3DVertex *vertices = (video::S3DVertex*)buf->getVertices();
+		u16 vc = buf->getVertexCount();
+		for(u16 i=0; i<vc; i++)
+		{
+			vertices[i].Color = color;
+		}
+	}
+}
+#endif
+
 /*
 	blockpos: position of block in block coordinates
 	camera_pos: position of camera in nodes
 	camera_dir: an unit vector pointing to camera direction
 	range: viewing range
 */
-bool isBlockInSight(v3s16 blockpos_b, v3f camera_pos, v3f camera_dir, f32 range,
-		f32 *distance_ptr)
+bool isBlockInSight(v3s16 blockpos_b, v3f camera_pos, v3f camera_dir,
+		f32 camera_fov, f32 range, f32 *distance_ptr)
 {
 	v3s16 blockpos_nodes = blockpos_b * MAP_BLOCKSIZE;
 	
@@ -211,8 +248,7 @@ bool isBlockInSight(v3s16 blockpos_b, v3f camera_pos, v3f camera_dir, f32 range,
 		cosangle += block_max_radius / dforward;
 
 		// If block is not in the field of view, skip it
-		//if(cosangle < cos(FOV_ANGLE/2))
-		if(cosangle < cos(FOV_ANGLE/2. * 4./3.))
+		if(cosangle < cos(camera_fov / 2))
 			return false;
 	}
 

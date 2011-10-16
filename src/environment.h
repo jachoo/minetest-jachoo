@@ -183,6 +183,14 @@ public:
 	u16 addActiveObject(ServerActiveObject *object);
 	
 	/*
+		Add an active object as a static object to the corresponding
+		MapBlock.
+		Caller allocates memory, ServerEnvironment frees memory.
+		Return value: true if succeeded, false if failed.
+	*/
+	bool addActiveObjectAsStatic(ServerActiveObject *object);
+	
+	/*
 		Find out what new objects have been added to
 		inside a radius around a position
 	*/
@@ -413,9 +421,6 @@ public:
 	
 	// Get event from queue. CEE_NONE is returned if queue is empty.
 	ClientEnvEvent getClientEvent();
-
-	// Post effects
-	void drawPostFx(video::IVideoDriver* driver, v3f camera_pos);
 	
 private:
 	ClientMap *m_map;

@@ -18,7 +18,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 /*
-	Clans.h - author: jachoo <g.j.g@interia.pl>
+	Clans.h - author: Jan Cychnerski
 */
 
 #ifndef CLANS_HEADER

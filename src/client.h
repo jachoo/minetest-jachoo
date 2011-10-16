@@ -113,7 +113,8 @@ enum ClientEventType
 {
 	CE_NONE,
 	CE_PLAYER_DAMAGE,
-	CE_PLAYER_FORCE_MOVE
+	CE_PLAYER_FORCE_MOVE,
+	CE_DEATHSCREEN,
 };
 
 struct ClientEvent
@@ -129,6 +130,12 @@ struct ClientEvent
 			f32 pitch;
 			f32 yaw;
 		} player_force_move;
+		struct{
+			bool set_camera_point_target;
+			f32 camera_point_target_x;
+			f32 camera_point_target_y;
+			f32 camera_point_target_z;
+		} deathscreen;
 	};
 };
 
@@ -183,32 +190,31 @@ public:
 
 	void groundAction(u8 action, v3s16 nodepos_undersurface,
 			v3s16 nodepos_oversurface, u16 item);
-	void clickObject(u8 button, v3s16 blockpos, s16 id, u16 item);
-	void clickActiveObject(u8 button, u16 id, u16 item);
+	void clickActiveObject(u8 button, u16 id, u16 item_i);
 
-	void sendSignText(v3s16 blockpos, s16 id, std::string text);
 	void sendSignNodeText(v3s16 p, std::string text);
 	void sendInventoryAction(InventoryAction *a);
 	void sendChatMessage(const std::wstring &message);
 	void sendChangePassword(const std::wstring oldpassword,
 		const std::wstring newpassword);
 	void sendDamage(u8 damage);
+	void sendRespawn();
 	
 	// locks envlock
 	void removeNode(v3s16 p);
 	// locks envlock
 	void addNode(v3s16 p, MapNode n);
 	
-	void updateCamera(v3f pos, v3f dir);
+	void updateCamera(v3f pos, v3f dir, f32 fov);
+	
+	void renderPostFx();
 	
 	// Returns InvalidPositionException if not found
 	MapNode getNode(v3s16 p);
 	// Wrapper to Map
 	NodeMetadata* getNodeMetadata(v3s16 p);
 
-	// Get the player position, and optionally put the
-	// eye position in *eye_position
-	v3f getPlayerPosition(v3f *eye_position=NULL);
+	LocalPlayer* getLocalPlayer();
 
 	void setPlayerControl(PlayerControl &control);
 
@@ -224,14 +230,6 @@ public:
 
 	Inventory* getInventory(InventoryContext *c, std::string id);
 	void inventoryAction(InventoryAction *a);
-
-	// Gets closest object pointed by the shootline
-	// Returns NULL if not found
-	MapBlockObject * getSelectedObject(
-			f32 max_d,
-			v3f from_pos_f_on_map,
-			core::line3d<f32> shootline_on_map
-	);
 
 	// Gets closest object pointed by the shootline
 	// Returns NULL if not found
@@ -302,12 +300,9 @@ public:
 	{
 		return m_access_denied_reason;
 	}
-	
-	/*
-		This should only be used for calling the special drawing stuff in
-		ClientEnvironment
-	*/
-	ClientEnvironment * getEnv()
+
+	//j
+	inline ClientEnvironment * getEnv()
 	{
 		return &m_env;
 	}
@@ -342,9 +337,6 @@ private:
 
 	IrrlichtDevice *m_device;
 
-	v3f camera_position;
-	v3f camera_direction;
-	
 	// Server serialization version
 	u8 m_server_ser_ver;
 

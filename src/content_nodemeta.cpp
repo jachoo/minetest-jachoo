@@ -20,6 +20,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "content_nodemeta.h"
 #include "inventory.h"
 #include "content_mapnode.h"
+#include "log.h"
 
 /*
 	SignNodeMetadata
@@ -110,6 +111,70 @@ bool ChestNodeMetadata::nodeRemovalDisabled()
 	return true;
 }
 std::string ChestNodeMetadata::getInventoryDrawSpecString()
+{
+	return
+		"invsize[8,9;]"
+		"list[current_name;0;0,0;8,4;]"
+		"list[current_player;main;0,5;8,4;]";
+}
+
+/*
+	LockingChestNodeMetadata
+*/
+
+// Prototype
+LockingChestNodeMetadata proto_LockingChestNodeMetadata;
+
+LockingChestNodeMetadata::LockingChestNodeMetadata()
+{
+	NodeMetadata::registerType(typeId(), create);
+
+	m_inventory = new Inventory();
+	m_inventory->addList("0", 8*4);
+}
+LockingChestNodeMetadata::~LockingChestNodeMetadata()
+{
+	delete m_inventory;
+}
+u16 LockingChestNodeMetadata::typeId() const
+{
+	return CONTENT_LOCKABLE_CHEST;
+}
+NodeMetadata* LockingChestNodeMetadata::create(std::istream &is)
+{
+	LockingChestNodeMetadata *d = new LockingChestNodeMetadata();
+	d->setOwner(deSerializeString(is));
+	d->m_inventory->deSerialize(is);
+	return d;
+}
+NodeMetadata* LockingChestNodeMetadata::clone()
+{
+	LockingChestNodeMetadata *d = new LockingChestNodeMetadata();
+	*d->m_inventory = *m_inventory;
+	return d;
+}
+void LockingChestNodeMetadata::serializeBody(std::ostream &os)
+{
+	os<<serializeString(m_text);
+	m_inventory->serialize(os);
+}
+std::string LockingChestNodeMetadata::infoText()
+{
+	return "Locking Chest";
+}
+bool LockingChestNodeMetadata::nodeRemovalDisabled()
+{
+	/*
+		Disable removal if chest contains something
+	*/
+	InventoryList *list = m_inventory->getList("0");
+	if(list == NULL)
+		return false;
+	if(list->getUsedSlots() == 0)
+		return false;
+	return true;
+}
+std::string LockingChestNodeMetadata::getInventoryDrawSpecString()
 {
 	return
 		"invsize[8,9;]"
@@ -223,12 +288,12 @@ bool FurnaceNodeMetadata::nodeRemovalDisabled()
 }
 void FurnaceNodeMetadata::inventoryModified()
 {
-	dstream<<"Furnace inventory modification callback"<<std::endl;
+	infostream<<"Furnace inventory modification callback"<<std::endl;
 }
 bool FurnaceNodeMetadata::step(float dtime)
 {
 	if(dtime > 60.0)
-		dstream<<"Furnace stepping a long time ("<<dtime<<")"<<std::endl;
+		infostream<<"Furnace stepping a long time ("<<dtime<<")"<<std::endl;
 	// Update at a fixed frequency
 	const float interval = 2.0;
 	m_step_accumulator += dtime;
@@ -238,7 +303,7 @@ bool FurnaceNodeMetadata::step(float dtime)
 		m_step_accumulator -= interval;
 		dtime = interval;
 
-		//dstream<<"Furnace step dtime="<<dtime<<std::endl;
+		//infostream<<"Furnace step dtime="<<dtime<<std::endl;
 		
 		InventoryList *dst_list = m_inventory->getList("dst");
 		assert(dst_list);
@@ -270,7 +335,7 @@ bool FurnaceNodeMetadata::step(float dtime)
 		*/
 		if(m_fuel_time < m_fuel_totaltime)
 		{
-			//dstream<<"Furnace is active"<<std::endl;
+			//infostream<<"Furnace is active"<<std::endl;
 			m_fuel_time += dtime;
 			m_src_time += dtime;
 			if(m_src_time >= m_src_totaltime && m_src_totaltime > 0.001
@@ -305,7 +370,7 @@ bool FurnaceNodeMetadata::step(float dtime)
 			break;
 		}
 		
-		//dstream<<"Furnace is out of fuel"<<std::endl;
+		//infostream<<"Furnace is out of fuel"<<std::endl;
 
 		InventoryList *fuel_list = m_inventory->getList("fuel");
 		assert(fuel_list);
@@ -390,7 +455,7 @@ bool FurnaceNodeMetadata::step(float dtime)
 		}
 		else
 		{
-			//dstream<<"No fuel found"<<std::endl;
+			//infostream<<"No fuel found"<<std::endl;
 			// No fuel, stop loop.
 			m_step_accumulator = 0;
 			break;

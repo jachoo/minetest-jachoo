@@ -17,19 +17,32 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-#include "common_irrlicht.h"
 #include "game.h"
+#include "common_irrlicht.h"
+#include <IGUICheckBox.h>
+#include <IGUIEditBox.h>
+#include <IGUIButton.h>
+#include <IGUIStaticText.h>
+#include <IGUIFont.h>
 #include "client.h"
 #include "server.h"
 #include "guiPauseMenu.h"
 #include "guiPasswordChange.h"
 #include "guiInventoryMenu.h"
 #include "guiTextInputMenu.h"
+#include "guiDeathScreen.h"
 #include "materials.h"
 #include "config.h"
 #include "clouds.h"
+#include "camera.h"
 #include "farmesh.h"
 #include "mapblock.h"
+#include "settings.h"
+#include "profiler.h"
+#include "mainmenumanager.h"
+#include "gettext.h"
+#include "log.h"
+#include "filesys.h"
 
 /*
 	TODO: Move content-aware stuff to separate file by adding properties
@@ -48,8 +61,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 #define FIELD_OF_VIEW_TEST 0
 
-
-MapDrawControl draw_control;
 
 // Chat data
 struct ChatLine
@@ -82,27 +93,6 @@ u16 g_selected_item = 0;
 	Text input system
 */
 
-struct TextDestSign : public TextDest
-{
-	TextDestSign(v3s16 blockpos, s16 id, Client *client)
-	{
-		m_blockpos = blockpos;
-		m_id = id;
-		m_client = client;
-	}
-	void gotText(std::wstring text)
-	{
-		std::string ntext = wide_to_narrow(text);
-		dstream<<"Changing text of a sign object: "
-				<<ntext<<std::endl;
-		m_client->sendSignText(m_blockpos, m_id, ntext);
-	}
-
-	v3s16 m_blockpos;
-	s16 m_id;
-	Client *m_client;
-};
-
 struct TextDestChat : public TextDest
 {
 	TextDestChat(Client *client)
@@ -134,7 +124,7 @@ struct TextDestSignNode : public TextDest
 	void gotText(std::wstring text)
 	{
 		std::string ntext = wide_to_narrow(text);
-		dstream<<"Changing text of a sign node: "
+		infostream<<"Changing text of a sign node: "
 				<<ntext<<std::endl;
 		m_client->sendSignNodeText(m_p, ntext);
 	}
@@ -143,144 +133,26 @@ struct TextDestSignNode : public TextDest
 	Client *m_client;
 };
 
-/*
-	Render distance feedback loop
-*/
-void updateViewingRange(f32 frametime_in, Client *client)
-{
-	if(draw_control.range_all == true)
-		return;
+/* Respawn menu callback */
 	
-	static f32 added_frametime = 0;
-	static s16 added_frames = 0;
-
-	added_frametime += frametime_in;
-	added_frames += 1;
-
-	// Actually this counter kind of sucks because frametime is busytime
-	static f32 counter = 0;
-	counter -= frametime_in;
-	if(counter > 0)
-		return;
-	//counter = 0.1;
-	counter = 0.2;
-
-	/*dstream<<__FUNCTION_NAME
-			<<": Collected "<<added_frames<<" frames, total of "
-			<<added_frametime<<"s."<<std::endl;*/
-	
-	/*dstream<<"draw_control.blocks_drawn="
-			<<draw_control.blocks_drawn
-			<<", draw_control.blocks_would_have_drawn="
-			<<draw_control.blocks_would_have_drawn
-			<<std::endl;*/
-	
-	float range_min = g_settings.getS16("viewing_range_nodes_min");
-	float range_max = g_settings.getS16("viewing_range_nodes_max");
-	
-	// Limit minimum to keep the feedback loop stable
-	if(range_min < 5)
-		range_min = 5;
-	
-	draw_control.wanted_min_range = range_min;
-	//draw_control.wanted_max_blocks = (1.5*draw_control.blocks_drawn)+1;
-	draw_control.wanted_max_blocks = (1.5*draw_control.blocks_would_have_drawn)+1;
-	if(draw_control.wanted_max_blocks < 10)
-		draw_control.wanted_max_blocks = 10;
-	
-	float block_draw_ratio = 1.0;
-	if(draw_control.blocks_would_have_drawn != 0)
+class MainRespawnInitiator: public IRespawnInitiator
 	{
-		block_draw_ratio = (float)draw_control.blocks_drawn
-			/ (float)draw_control.blocks_would_have_drawn;
-	}
-
-	// Calculate the average frametime in the case that all wanted
-	// blocks had been drawn
-	f32 frametime = added_frametime / added_frames / block_draw_ratio;
-	
-	added_frametime = 0.0;
-	added_frames = 0;
-	
-	float wanted_fps = g_settings.getFloat("wanted_fps");
-	float wanted_frametime = 1.0 / wanted_fps;
-	
-	f32 wanted_frametime_change = wanted_frametime - frametime;
-	//dstream<<"wanted_frametime_change="<<wanted_frametime_change<<std::endl;
-	
-	// If needed frametime change is small, just return
-	if(fabs(wanted_frametime_change) < wanted_frametime*0.4)
+public:
+	MainRespawnInitiator(bool *active, Client *client):
+		m_active(active), m_client(client)
 	{
-		//dstream<<"ignoring small wanted_frametime_change"<<std::endl;
-		return;
+		*m_active = true;
 	}
-
-	float range = draw_control.wanted_range;
-	float new_range = range;
-
-	static s16 range_old = 0;
-	static f32 frametime_old = 0;
-	
-	float d_range = range - range_old;
-	f32 d_frametime = frametime - frametime_old;
-	// A sane default of 30ms per 50 nodes of range
-	static f32 time_per_range = 30. / 50;
-	if(d_range != 0)
+	void respawn()
 	{
-		time_per_range = d_frametime / d_range;
+		*m_active = false;
+		m_client->sendRespawn();
 	}
+private:
+	bool *m_active;
+	Client *m_client;
+};
 	
-	// The minimum allowed calculated frametime-range derivative:
-	// Practically this sets the maximum speed of changing the range.
-	// The lower this value, the higher the maximum changing speed.
-	// A low value here results in wobbly range (0.001)
-	// A high value here results in slow changing range (0.0025)
-	// SUGG: This could be dynamically adjusted so that when
-	//       the camera is turning, this is lower
-	//float min_time_per_range = 0.0015;
-	float min_time_per_range = 0.0010;
-	//float min_time_per_range = 0.05 / range;
-	if(time_per_range < min_time_per_range)
-	{
-		time_per_range = min_time_per_range;
-		//dstream<<"time_per_range="<<time_per_range<<" (min)"<<std::endl;
-	}
-	else
-	{
-		//dstream<<"time_per_range="<<time_per_range<<std::endl;
-	}
-
-	f32 wanted_range_change = wanted_frametime_change / time_per_range;
-	// Dampen the change a bit to kill oscillations
-	//wanted_range_change *= 0.9;
-	//wanted_range_change *= 0.75;
-	wanted_range_change *= 0.5;
-	//dstream<<"wanted_range_change="<<wanted_range_change<<std::endl;
-
-	// If needed range change is very small, just return
-	if(fabs(wanted_range_change) < 0.001)
-	{
-		//dstream<<"ignoring small wanted_range_change"<<std::endl;
-		return;
-	}
-
-	new_range += wanted_range_change;
-	
-	//float new_range_unclamped = new_range;
-	if(new_range < range_min)
-		new_range = range_min;
-	if(new_range > range_max)
-		new_range = range_max;
-	
-	/*dstream<<"new_range="<<new_range_unclamped
-			<<", clamped to "<<new_range<<std::endl;*/
-
-	draw_control.wanted_range = new_range;
-
-	range_old = new_range;
-	frametime_old = frametime;
-}
-
 /*
 	Hotbar draw routine
 */
@@ -291,7 +163,7 @@ void draw_hotbar(video::IVideoDriver *driver, gui::IGUIFont *font,
 	InventoryList *mainlist = inventory->getList("main");
 	if(mainlist == NULL)
 	{
-		dstream<<"WARNING: draw_hotbar(): mainlist == NULL"<<std::endl;
+		errorstream<<"draw_hotbar(): mainlist == NULL"<<std::endl;
 		return;
 	}
 	
@@ -429,7 +301,7 @@ void getPointedNode(Client *client, v3f player_position,
 	
 	v3s16 pos_i = floatToInt(player_position, BS);
 
-	/*std::cout<<"pos_i=("<<pos_i.X<<","<<pos_i.Y<<","<<pos_i.Z<<")"
+	/*infostream<<"pos_i=("<<pos_i.X<<","<<pos_i.Y<<","<<pos_i.Z<<")"
 			<<std::endl;*/
 
 	s16 a = d;
@@ -772,7 +644,7 @@ void update_skybox(video::IVideoDriver* driver,
 	}
 	
 	/*// Disable skybox if FarMesh is enabled
-	if(g_settings.getBool("enable_farmesh"))
+	if(g_settings->getBool("enable_farmesh"))
 		return;*/
 	
 	if(brightness >= 0.5)
@@ -886,7 +758,7 @@ void the_game(
 	SharedPtr<Server> server;
 	if(address == ""){
 		draw_load_screen(L"Creating server...", driver, font);
-		std::cout<<DTIME<<"Creating server"<<std::endl;
+		infostream<<"Creating server"<<std::endl;
 		server = new Server(map_dir, configpath);
 		server->start(port);
 	}
@@ -896,7 +768,8 @@ void the_game(
 	*/
 
 	draw_load_screen(L"Creating client...", driver, font);
-	std::cout<<DTIME<<"Creating client"<<std::endl;
+	infostream<<"Creating client"<<std::endl;
+	MapDrawControl draw_control;
 	Client client(device, playername.c_str(), password, draw_control);
 			
 	draw_load_screen(L"Resolving address...", driver, font);
@@ -910,7 +783,7 @@ void the_game(
 	}
 	catch(ResolveError &e)
 	{
-		std::cout<<DTIME<<"Couldn't resolve address"<<std::endl;
+		errorstream<<"Couldn't resolve address"<<std::endl;
 		//return 0;
 		error_message = L"Couldn't resolve address";
 		//gui_loadingtext->remove();
@@ -921,9 +794,9 @@ void the_game(
 		Attempt to connect to the server
 	*/
 	
-	dstream<<DTIME<<"Connecting to server at ";
-	connect_address.print(&dstream);
-	dstream<<std::endl;
+	infostream<<"Connecting to server at ";
+	connect_address.print(&infostream);
+	infostream<<std::endl;
 	client.connect(connect_address);
 
 	bool could_connect = false;
@@ -979,12 +852,12 @@ void the_game(
 		{
 			error_message = L"Access denied. Reason: "
 					+client.accessDeniedReason();
-			std::cout<<DTIME<<wide_to_narrow(error_message)<<std::endl;
+			errorstream<<wide_to_narrow(error_message)<<std::endl;
 		}
 		else
 		{
 			error_message = L"Connection timed out.";
-			std::cout<<DTIME<<"Timed out."<<std::endl;
+			errorstream<<"Timed out."<<std::endl;
 		}
 		//gui_loadingtext->remove();
 		return;
@@ -1000,25 +873,10 @@ void the_game(
 	/*
 		Create the camera node
 	*/
-
-	scene::ICameraSceneNode* camera = smgr->addCameraSceneNode(
-		0, // Camera parent
-		v3f(BS*100, BS*2, BS*100), // Look from
-		v3f(BS*100+1, BS*2, BS*100), // Look to
-		-1 // Camera ID
-   	);
-
-	if(camera == NULL)
-	{
-		error_message = L"Failed to create the camera node";
+	Camera camera(smgr, draw_control);
+	if (!camera.successfullyCreated(error_message))
 		return;
-	}
 
-	camera->setFOV(FOV_ANGLE);
-
-	// Just so big a value that everything rendered is visible
-	camera->setFarValue(100000*BS);
-	
 	f32 camera_yaw = 0; // "right/left"
 	f32 camera_pitch = 0; // "up/down"
 
@@ -1028,7 +886,7 @@ void the_game(
 	
 	float cloud_height = BS*100;
 	Clouds *clouds = NULL;
-	if(g_settings.getBool("enable_clouds"))
+	if(g_settings->getBool("enable_clouds"))
 	{
 		clouds = new Clouds(smgr->getRootSceneNode(), smgr, -1,
 				cloud_height, time(0));
@@ -1039,7 +897,7 @@ void the_game(
 	*/
 
 	FarMesh *farmesh = NULL;
-	if(g_settings.getBool("enable_farmesh"))
+	if(g_settings->getBool("enable_farmesh"))
 	{
 		farmesh = new FarMesh(smgr->getRootSceneNode(), smgr, -1, client.getMapSeed(), &client);
 	}
@@ -1125,10 +983,20 @@ void the_game(
 
 	core::list<float> frametime_log;
 
+	float nodig_delay_counter = 0.0;
+	float dig_time = 0.0;
+	u16 dig_index = 0;
+	v3s16 nodepos_old(-32768,-32768,-32768);
+
 	float damage_flash_timer = 0;
 	s16 farmesh_range = 20*MAP_BLOCKSIZE;
 	
-	bool invert_mouse = g_settings.getBool("invert_mouse");
+	const float object_hit_delay = 0.5;
+	float object_hit_delay_timer = 0.0;
+
+	bool invert_mouse = g_settings->getBool("invert_mouse");
+
+	bool respawn_menu_active = false;
 
 	/*
 		Main loop
@@ -1153,7 +1021,7 @@ void the_game(
 		{
 			error_message = L"Access denied. Reason: "
 					+client.accessDeniedReason();
-			std::cout<<DTIME<<wide_to_narrow(error_message)<<std::endl;
+			errorstream<<wide_to_narrow(error_message)<<std::endl;
 			break;
 		}
 
@@ -1222,23 +1090,17 @@ void the_game(
 			busytime = busytime_u32 / 1000.0;
 		}
 
-		//std::cout<<"busytime_u32="<<busytime_u32<<std::endl;
+		//infostream<<"busytime_u32="<<busytime_u32<<std::endl;
 	
 		// Necessary for device->getTimer()->getTime()
 		device->run();
 
 		/*
-			Viewing range
-		*/
-		
-		updateViewingRange(busytime, &client);
-		
-		/*
 			FPS limiter
 		*/
 
 		{
-			float fps_max = g_settings.getFloat("fps_max");
+			float fps_max = g_settings->getFloat("fps_max");
 			u32 frametime_min = 1000./fps_max;
 			
 			if(busytime_u32 < frametime_min)
@@ -1263,6 +1125,12 @@ void the_game(
 			dtime = 0;
 		lasttime = time;
 
+		/* Run timers */
+
+		object_hit_delay_timer -= dtime;
+
+		g_profiler->add("Elapsed time", dtime * 1000);
+
 		/*
 			Log frametime for visualization
 		*/
@@ -1277,8 +1145,8 @@ void the_game(
 			Visualize frametime in terminal
 		*/
 		/*for(u32 i=0; i<dtime*400; i++)
-			std::cout<<"X";
-		std::cout<<std::endl;*/
+			infostream<<"X";
+		infostream<<std::endl;*/
 
 		/*
 			Time average and jitter calculation
@@ -1343,7 +1211,7 @@ void the_game(
 			if(counter < 0)
 			{
 				counter = 30.0;
-				client.printDebugInfo(std::cout);
+				client.printDebugInfo(infostream);
 			}
 		}
 
@@ -1351,14 +1219,14 @@ void the_game(
 			Profiler
 		*/
 		float profiler_print_interval =
-				g_settings.getFloat("profiler_print_interval");
+				g_settings->getFloat("profiler_print_interval");
 		if(profiler_print_interval != 0)
 		{
 			if(m_profiler_interval.step(0.030, profiler_print_interval))
 			{
-				dstream<<"Profiler:"<<std::endl;
-				g_profiler.print(dstream);
-				g_profiler.clear();
+				infostream<<"Profiler:"<<std::endl;
+				g_profiler->print(infostream);
+				g_profiler->clear();
 			}
 		}
 
@@ -1380,7 +1248,7 @@ void the_game(
 		*/
 		if(input->wasKeyDown(getKeySetting("keymap_inventory")))
 		{
-			dstream<<DTIME<<"the_game: "
+			infostream<<"the_game: "
 					<<"Launching inventory"<<std::endl;
 			
 			GUIInventoryMenu *menu =
@@ -1406,7 +1274,7 @@ void the_game(
 		}
 		else if(input->wasKeyDown(EscapeKey))
 		{
-			dstream<<DTIME<<"the_game: "
+			infostream<<"the_game: "
 					<<"Launching pause menu"<<std::endl;
 			// It will delete itself by itself
 			(new GUIPauseMenu(guienv, guiroot, -1, g_gamecallback,
@@ -1433,40 +1301,40 @@ void the_game(
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_freemove")))
 		{
-			if(g_settings.getBool("free_move"))
+			if(g_settings->getBool("free_move"))
 			{
-				g_settings.set("free_move","false");
+				g_settings->set("free_move","false");
 				chat_lines.push_back(ChatLine(L"free_move disabled"));
 			}
 			else
 			{
-				g_settings.set("free_move","true");
+				g_settings->set("free_move","true");
 				chat_lines.push_back(ChatLine(L"free_move enabled"));
 			}
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_fastmove")))
 		{
-			if(g_settings.getBool("fast_move"))
+			if(g_settings->getBool("fast_move"))
 			{
-				g_settings.set("fast_move","false");
+				g_settings->set("fast_move","false");
 				chat_lines.push_back(ChatLine(L"fast_move disabled"));
 			}
 			else
 			{
-				g_settings.set("fast_move","true");
+				g_settings->set("fast_move","true");
 				chat_lines.push_back(ChatLine(L"fast_move enabled"));
 			}
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_frametime_graph")))
 		{
-			if(g_settings.getBool("frametime_graph"))
+			if(g_settings->getBool("frametime_graph"))
 			{
-				g_settings.set("frametime_graph","false");
+				g_settings->set("frametime_graph","false");
 				chat_lines.push_back(ChatLine(L"frametime_graph disabled"));
 			}
 			else
 			{
-				g_settings.set("frametime_graph","true");
+				g_settings->set("frametime_graph","true");
 				chat_lines.push_back(ChatLine(L"frametime_graph enabled"));
 			}
 		}
@@ -1475,16 +1343,16 @@ void the_game(
 			irr::video::IImage* const image = driver->createScreenShot(); 
 			if (image) { 
 				irr::c8 filename[256]; 
-				snprintf(filename, 256, "%s/screenshot_%u.png", 
-						 g_settings.get("screenshot_path").c_str(),
+				snprintf(filename, 256, "%s" DIR_DELIM "screenshot_%u.png", 
+						 g_settings->get("screenshot_path").c_str(),
 						 device->getTimer()->getRealTime()); 
 				if (driver->writeImageToFile(image, filename)) {
 					std::wstringstream sstr;
 					sstr<<"Saved screenshot to '"<<filename<<"'";
-					dstream<<"Saved screenshot to '"<<filename<<"'"<<std::endl;
+					infostream<<"Saved screenshot to '"<<filename<<"'"<<std::endl;
 					chat_lines.push_back(ChatLine(sstr.str()));
 				} else{
-					dstream<<"Failed to save screenshot '"<<filename<<"'"<<std::endl;
+					infostream<<"Failed to save screenshot '"<<filename<<"'"<<std::endl;
 				}
 				image->drop(); 
 			}			 
@@ -1522,7 +1390,7 @@ void the_game(
 				{
 					g_selected_item = i;
 
-					dstream<<DTIME<<"Selected item: "
+					infostream<<"Selected item: "
 							<<g_selected_item<<std::endl;
 				}
 			}
@@ -1534,12 +1402,12 @@ void the_game(
 			if(draw_control.range_all)
 			{
 				draw_control.range_all = false;
-				dstream<<DTIME<<"Disabled full viewing range"<<std::endl;
+				infostream<<"Disabled full viewing range"<<std::endl;
 			}
 			else
 			{
 				draw_control.range_all = true;
-				dstream<<DTIME<<"Enabled full viewing range"<<std::endl;
+				infostream<<"Enabled full viewing range"<<std::endl;
 			}
 		}
 
@@ -1555,10 +1423,76 @@ void the_game(
 		}
 
 		/*
-			Player speed control
-			TODO: Cache the keycodes from getKeySetting
+			Mouse and camera control
+			NOTE: Do this before client.setPlayerControl() to not cause a camera lag of one frame
 		*/
 		
+		if((device->isWindowActive() && noMenuActive()) || random_input)
+		{
+			if(!random_input)
+			{
+				// Mac OSX gets upset if this is set every frame
+				if(device->getCursorControl()->isVisible())
+					device->getCursorControl()->setVisible(false);
+			}
+
+			if(first_loop_after_window_activation){
+				//infostream<<"window active, first loop"<<std::endl;
+				first_loop_after_window_activation = false;
+			}
+			else{
+				s32 dx = input->getMousePos().X - displaycenter.X;
+				s32 dy = input->getMousePos().Y - displaycenter.Y;
+				if(invert_mouse)
+					dy = -dy;
+				//infostream<<"window active, pos difference "<<dx<<","<<dy<<std::endl;
+				
+				/*const float keyspeed = 500;
+				if(input->isKeyDown(irr::KEY_UP))
+					dy -= dtime * keyspeed;
+				if(input->isKeyDown(irr::KEY_DOWN))
+					dy += dtime * keyspeed;
+				if(input->isKeyDown(irr::KEY_LEFT))
+					dx -= dtime * keyspeed;
+				if(input->isKeyDown(irr::KEY_RIGHT))
+					dx += dtime * keyspeed;*/
+
+				camera_yaw -= dx*0.2;
+				camera_pitch += dy*0.2;
+				if(camera_pitch < -89.5) camera_pitch = -89.5;
+				if(camera_pitch > 89.5) camera_pitch = 89.5;
+			}
+			input->setMousePos(displaycenter.X, displaycenter.Y);
+		}
+		else{
+			// Mac OSX gets upset if this is set every frame
+			if(device->getCursorControl()->isVisible() == false)
+				device->getCursorControl()->setVisible(true);
+
+			//infostream<<"window inactive"<<std::endl;
+			first_loop_after_window_activation = true;
+		}
+
+		/*
+			Player speed control
+		*/
+		
+		if(!noMenuActive() || !device->isWindowActive())
+		{
+			PlayerControl control(
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				false,
+				camera_pitch,
+				camera_yaw
+			);
+			client.setPlayerControl(control);
+		}
+		else
 		{
 			/*bool a_up,
 			bool a_down,
@@ -1603,6 +1537,7 @@ void the_game(
 			//client.step(dtime_avg1);
 		}
 
+		{
 		// Read client events
 		for(;;)
 		{
@@ -1614,91 +1549,64 @@ void the_game(
 			else if(event.type == CE_PLAYER_DAMAGE)
 			{
 				//u16 damage = event.player_damage.amount;
-				//dstream<<"Player damage: "<<damage<<std::endl;
+					//infostream<<"Player damage: "<<damage<<std::endl;
 				damage_flash_timer = 0.05;
+					if(event.player_damage.amount >= 2){
+						damage_flash_timer += 0.05 * event.player_damage.amount;
 			}
+				}
 			else if(event.type == CE_PLAYER_FORCE_MOVE)
 			{
 				camera_yaw = event.player_force_move.yaw;
 				camera_pitch = event.player_force_move.pitch;
 			}
-		}
+				else if(event.type == CE_DEATHSCREEN)
+				{
+					if(respawn_menu_active)
+						continue;
 		
-		// Get player position
-		v3f camera_position;
-		v3f player_position = client.getPlayerPosition(&camera_position);
+					/*bool set_camera_point_target =
+							event.deathscreen.set_camera_point_target;
+					v3f camera_point_target;
+					camera_point_target.X = event.deathscreen.camera_point_target_x;
+					camera_point_target.Y = event.deathscreen.camera_point_target_y;
+					camera_point_target.Z = event.deathscreen.camera_point_target_z;*/
+					MainRespawnInitiator *respawner =
+							new MainRespawnInitiator(
+									&respawn_menu_active, &client);
+					GUIDeathScreen *menu =
+							new GUIDeathScreen(guienv, guiroot, -1, 
+								&g_menumgr, respawner);
+					menu->drop();
+
+					/* Handle visualization */
+
+					damage_flash_timer = 0;
+		
+					/*LocalPlayer* player = client.getLocalPlayer();
+					player->setPosition(player->getPosition() + v3f(0,-BS,0));
+					camera.update(player, busytime, screensize);*/
+			}
+			}
+			}
 
 		//TimeTaker //timer2("//timer2");
 
-		/*
-			Mouse and camera control
-		*/
+		LocalPlayer* player = client.getLocalPlayer();
+		camera.update(player, busytime, screensize);
+		camera.step(dtime);
 		
-		if((device->isWindowActive() && noMenuActive()) || random_input)
-		{
-			if(!random_input)
-			{
-				// Mac OSX gets upset if this is set every frame
-				if(device->getCursorControl()->isVisible())
-					device->getCursorControl()->setVisible(false);
-			}
+		v3f player_position = player->getPosition();
+		v3f camera_position = camera.getPosition();
+		v3f camera_direction = camera.getDirection();
+		f32 camera_fov = camera.getFovMax();
 
-			if(first_loop_after_window_activation){
-				//std::cout<<"window active, first loop"<<std::endl;
-				first_loop_after_window_activation = false;
-			}
-			else{
-				s32 dx = input->getMousePos().X - displaycenter.X;
-				s32 dy = input->getMousePos().Y - displaycenter.Y;
-				if(invert_mouse)
-					dy = -dy;
-				//std::cout<<"window active, pos difference "<<dx<<","<<dy<<std::endl;
-				
-				/*const float keyspeed = 500;
-				if(input->isKeyDown(irr::KEY_UP))
-					dy -= dtime * keyspeed;
-				if(input->isKeyDown(irr::KEY_DOWN))
-					dy += dtime * keyspeed;
-				if(input->isKeyDown(irr::KEY_LEFT))
-					dx -= dtime * keyspeed;
-				if(input->isKeyDown(irr::KEY_RIGHT))
-					dx += dtime * keyspeed;*/
+		if(FIELD_OF_VIEW_TEST)
+			client.updateCamera(v3f(0,0,0), v3f(0,0,1), camera_fov);
+		else
+			client.updateCamera(camera_position,
+				camera_direction, camera_fov);
 
-				camera_yaw -= dx*0.2;
-				camera_pitch += dy*0.2;
-				if(camera_pitch < -89.5) camera_pitch = -89.5;
-				if(camera_pitch > 89.5) camera_pitch = 89.5;
-			}
-			input->setMousePos(displaycenter.X, displaycenter.Y);
-		}
-		else{
-			// Mac OSX gets upset if this is set every frame
-			if(device->getCursorControl()->isVisible() == false)
-				device->getCursorControl()->setVisible(true);
-
-			//std::cout<<"window inactive"<<std::endl;
-			first_loop_after_window_activation = true;
-		}
-
-		camera_yaw = wrapDegrees(camera_yaw);
-		camera_pitch = wrapDegrees(camera_pitch);
-		
-		v3f camera_direction = v3f(0,0,1);
-		camera_direction.rotateYZBy(camera_pitch);
-		camera_direction.rotateXZBy(camera_yaw);
-
-		camera->setPosition(camera_position);
-		// *100.0 helps in large map coordinates
-		camera->setTarget(camera_position + camera_direction * 100.0);
-
-		if(FIELD_OF_VIEW_TEST){
-			client.updateCamera(v3f(0,0,0), v3f(0,0,1));
-		}
-		else{
-			//TimeTaker timer("client.updateCamera");
-			client.updateCamera(camera_position, camera_direction);
-		}
-		
 		//timer2.stop();
 		//TimeTaker //timer3("//timer3");
 
@@ -1713,72 +1621,24 @@ void the_game(
 		core::line3d<f32> shootline(camera_position,
 				camera_position + camera_direction * BS * (d+1));
 
-		MapBlockObject *selected_object = client.getSelectedObject
-				(d*BS, camera_position, shootline);
-
 		ClientActiveObject *selected_active_object
 				= client.getSelectedActiveObject
 					(d*BS, camera_position, shootline);
 
-		if(selected_object != NULL)
-		{
-			//dstream<<"Client returned selected_object != NULL"<<std::endl;
+		bool left_punch = false;
+		bool left_punch_muted = false;
 
-			core::aabbox3d<f32> box_on_map
-					= selected_object->getSelectionBoxOnMap();
-
-			hilightboxes.push_back(box_on_map);
-
-			infotext = narrow_to_wide(selected_object->infoText());
-
-			if(input->getLeftClicked())
+		if(selected_active_object != NULL)
 			{
-				std::cout<<DTIME<<"Left-clicked object"<<std::endl;
-				client.clickObject(0, selected_object->getBlock()->getPos(),
-						selected_object->getId(), g_selected_item);
-			}
-			else if(input->getRightClicked())
+			/* Clear possible cracking animation */
+			if(nodepos_old != v3s16(-32768,-32768,-32768))
 			{
-				std::cout<<DTIME<<"Right-clicked object"<<std::endl;
-				/*
-					Check if we want to modify the object ourselves
-				*/
-				if(selected_object->getTypeId() == MAPBLOCKOBJECT_TYPE_SIGN)
-				{
-					dstream<<"Sign object right-clicked"<<std::endl;
-					
-					if(random_input == false)
-					{
-						// Get a new text for it
-
-						TextDest *dest = new TextDestSign(
-								selected_object->getBlock()->getPos(),
-								selected_object->getId(),
-								&client);
-
-						SignObject *sign_object = (SignObject*)selected_object;
-
-						std::wstring wtext =
-								narrow_to_wide(sign_object->getText());
-
-						(new GUITextInputMenu(guienv, guiroot, -1,
-								&g_menumgr, dest,
-								wtext))->drop();
+				client.clearTempMod(nodepos_old);
+				dig_time = 0.0;
+				nodepos_old = v3s16(-32768,-32768,-32768);
 					}
-				}
-				/*
-					Otherwise pass the event to the server as-is
-				*/
-				else
-				{
-					client.clickObject(1, selected_object->getBlock()->getPos(),
-							selected_object->getId(), g_selected_item);
-				}
-			}
-		}
-		else if(selected_active_object != NULL)
-		{
-			//dstream<<"Client returned selected_active_object != NULL"<<std::endl;
+			
+			//infostream<<"Client returned selected_active_object != NULL"<<std::endl;
 			
 			core::aabbox3d<f32> *selection_box
 					= selected_active_object->getSelectionBox();
@@ -1793,20 +1653,37 @@ void the_game(
 					selection_box->MaxEdge + pos
 			);
 
+			if(selected_active_object->doShowSelectionBox())
 			hilightboxes.push_back(box_on_map);
 
 			//infotext = narrow_to_wide("A ClientActiveObject");
 			infotext = narrow_to_wide(selected_active_object->infoText());
 
-			if(input->getLeftClicked())
+			//if(input->getLeftClicked())
+			if(input->getLeftState())
 			{
-				std::cout<<DTIME<<"Left-clicked object"<<std::endl;
+				bool do_punch = false;
+				bool do_punch_damage = false;
+				if(object_hit_delay_timer <= 0.0){
+					do_punch = true;
+					do_punch_damage = true;
+					object_hit_delay_timer = object_hit_delay;
+				}
+				if(input->getLeftClicked()){
+					do_punch = true;
+				}
+				if(do_punch){
+					infostream<<"Left-clicked object"<<std::endl;
+					left_punch = true;
+				}
+				if(do_punch_damage){
 				client.clickActiveObject(0,
 						selected_active_object->getId(), g_selected_item);
 			}
+			}
 			else if(input->getRightClicked())
 			{
-				std::cout<<DTIME<<"Right-clicked object"<<std::endl;
+				infostream<<"Right-clicked object"<<std::endl;
 				client.clickActiveObject(1,
 						selected_active_object->getId(), g_selected_item);
 			}
@@ -1829,15 +1706,14 @@ void the_game(
 				nodepos, neighbourpos,
 				nodehilightbox, d);
 	
-		static float nodig_delay_counter = 0.0;
-
-		if(nodefound)
+		if(!nodefound){
+			if(nodepos_old != v3s16(-32768,-32768,-32768))
 		{
-			static v3s16 nodepos_old(-32768,-32768,-32768);
-
-			static float dig_time = 0.0;
-			static u16 dig_index = 0;
-			
+				client.clearTempMod(nodepos_old);
+				dig_time = 0.0;
+				nodepos_old = v3s16(-32768,-32768,-32768);
+			}
+		} else {
 			//j
 			Player* player = client.getEnv()->getLocalPlayer();
 			Map * map = &client.getEnv()->getMap();
@@ -1905,13 +1781,14 @@ void the_game(
 			{
 				if(nodepos != nodepos_old)
 				{
-					std::cout<<DTIME<<"Pointing at ("<<nodepos.X<<","
+					infostream<<"Pointing at ("<<nodepos.X<<","
 							<<nodepos.Y<<","<<nodepos.Z<<")"<<std::endl;
 
 					if(nodepos_old != v3s16(-32768,-32768,-32768))
 					{
 						client.clearTempMod(nodepos_old);
 						dig_time = 0.0;
+						nodepos_old = v3s16(-32768,-32768,-32768);
 					}
 				}
 
@@ -1921,7 +1798,7 @@ void the_game(
 					if(input->getLeftClicked() ||
 							(input->getLeftState() && nodepos != nodepos_old))
 					{
-						dstream<<DTIME<<"Started digging"<<std::endl;
+					infostream<<"Started digging"<<std::endl;
 						client.groundAction(0, nodepos, neighbourpos, g_selected_item);
 					}
 					if(input->getLeftClicked())
@@ -1954,7 +1831,7 @@ void the_game(
 
 						if(prop.diggable == false)
 						{
-							/*dstream<<"Material "<<(int)material
+						/*infostream<<"Material "<<(int)material
 									<<" not diggable with \""
 									<<toolname<<"\""<<std::endl;*/
 							// I guess nobody will wait for this long
@@ -1979,12 +1856,12 @@ void the_game(
 						if(dig_index < CRACK_ANIMATION_LENGTH)
 						{
 							//TimeTaker timer("client.setTempMod");
-							//dstream<<"dig_index="<<dig_index<<std::endl;
+						//infostream<<"dig_index="<<dig_index<<std::endl;
 							client.setTempMod(nodepos, NodeMod(NODEMOD_CRACK, dig_index));
 						}
 						else
 						{
-							dstream<<DTIME<<"Digging completed"<<std::endl;
+						infostream<<"Digging completed"<<std::endl;
 							client.groundAction(3, nodepos, neighbourpos, g_selected_item);
 							client.clearTempMod(nodepos);
 							client.removeNode(nodepos);
@@ -2010,18 +1887,20 @@ void the_game(
 						}
 
 						dig_time += dtime;
+
+					camera.setDigging(0);  // left click animation
 					}
 				}
 			}
 			
 			if(canModify && input->getRightClicked())
 			{
-				std::cout<<DTIME<<"Ground right-clicked"<<std::endl;
+				infostream<<"Ground right-clicked"<<std::endl;
 				
 				// If metadata provides an inventory view, activate it
 				if(meta && meta->getInventoryDrawSpecString() != "" && !random_input)
 				{
-					dstream<<DTIME<<"Launching custom inventory view"<<std::endl;
+					infostream<<"Launching custom inventory view"<<std::endl;
 					/*
 						Construct the unique identification string of the node
 					*/
@@ -2054,7 +1933,7 @@ void the_game(
 				}
 				else if(meta && meta->typeId() == CONTENT_SIGN_WALL && !random_input)
 				{
-					dstream<<"Sign node right-clicked"<<std::endl;
+					infostream<<"Sign node right-clicked"<<std::endl;
 					
 					SignNodeMetadata *signmeta = (SignNodeMetadata*)meta;
 					
@@ -2076,28 +1955,32 @@ void the_game(
 				else
 				{
 					client.groundAction(1, nodepos, neighbourpos, g_selected_item);
+					camera.setDigging(1);  // right click animation
 				}
 			}
 			
 			nodepos_old = nodepos;
 		}
-		else{
-		}
 
 		} // selected_object == NULL
 		
+		if(left_punch || (input->getLeftClicked() && !left_punch_muted))
+		{
+			camera.setDigging(0); // left click animation
+		}
+
 		input->resetLeftClicked();
 		input->resetRightClicked();
 		
 		if(input->getLeftReleased())
 		{
-			std::cout<<DTIME<<"Left button released (stopped digging)"
+			infostream<<"Left button released (stopped digging)"
 					<<std::endl;
 			client.groundAction(2, v3s16(0,0,0), v3s16(0,0,0), 0);
 		}
 		if(input->getRightReleased())
 		{
-			//std::cout<<DTIME<<"Right released"<<std::endl;
+			//inostream<<DTIME<<"Right released"<<std::endl;
 			// Nothing here
 		}
 		
@@ -2108,8 +1991,6 @@ void the_game(
 			Calculate stuff for drawing
 		*/
 
-		camera->setAspectRatio((f32)screensize.X / (f32)screensize.Y);
-		
 		u32 daynight_ratio = client.getDayNightRatio();
 		u8 l = decode_light((daynight_ratio * LIGHT_SUN) / 1000);
 		video::SColor bgcolor = video::SColor(
@@ -2130,7 +2011,7 @@ void the_game(
 			update_skybox(driver, smgr, skybox, brightness);
 
 		/*
-			Update coulds
+			Update clouds
 		*/
 		if(clouds)
 		{
@@ -2162,7 +2043,7 @@ void the_game(
 			Fog
 		*/
 		
-		if(g_settings.getBool("enable_fog") == true)
+		if(g_settings->getBool("enable_fog") == true)
 		{
 			f32 range;
 			if(farmesh)
@@ -2200,7 +2081,6 @@ void the_game(
 				false // range fog
 			);
 		}
-
 
 		/*
 			Update gui stuff (0ms)
@@ -2346,8 +2226,15 @@ void the_game(
 		{
 			client.selectPlayerItem(g_selected_item);
 			old_selected_item = g_selected_item;
-			//std::cout<<"Updating local inventory"<<std::endl;
+			//infostream<<"Updating local inventory"<<std::endl;
 			client.getLocalInventory(local_inventory);
+
+			// Update wielded tool
+			InventoryList *mlist = local_inventory.getList("main");
+			InventoryItem *item = NULL;
+			if(mlist != NULL)
+				item = mlist->getItem(g_selected_item);
+			camera.wield(item);
 		}
 		
 		/*
@@ -2378,7 +2265,7 @@ void the_game(
 		
 		//timer3.stop();
 		
-		//std::cout<<DTIME<<"smgr->drawAll()"<<std::endl;
+		//infostream<<"smgr->drawAll()"<<std::endl;
 		
 		{
 			TimeTaker timer("smgr");
@@ -2404,7 +2291,7 @@ void the_game(
 		for(core::list< core::aabbox3d<f32> >::Iterator i=hilightboxes.begin();
 				i != hilightboxes.end(); i++)
 		{
-			/*std::cout<<"hilightbox min="
+			/*infostream<<"hilightbox min="
 					<<"("<<i->MinEdge.X<<","<<i->MinEdge.Y<<","<<i->MinEdge.Z<<")"
 					<<" max="
 					<<"("<<i->MaxEdge.X<<","<<i->MaxEdge.Y<<","<<i->MaxEdge.Z<<")"
@@ -2413,9 +2300,24 @@ void the_game(
 		}
 
 		/*
+			Wielded tool
+		*/
+		{
+			// Warning: This clears the Z buffer.
+			camera.drawWieldedTool();
+		}
+
+		/*
+			Post effects
+		*/
+		{
+			client.renderPostFx();
+		}
+
+		/*
 			Frametime log
 		*/
-		if(g_settings.getBool("frametime_graph") == true)
+		if(g_settings->getBool("frametime_graph") == true)
 		{
 			s32 x = 10;
 			for(core::list<float>::Iterator
@@ -2451,13 +2353,6 @@ void the_game(
 		// 0-1ms
 		guienv->drawAll();
 
-		/*
-			Environment post fx
-		*/
-		{
-			client.getEnv()->drawPostFx(driver, camera_position);
-		}
-		
 		/*
 			Draw hotbar
 		*/

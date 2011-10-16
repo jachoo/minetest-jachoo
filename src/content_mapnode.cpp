@@ -23,6 +23,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "content_mapnode.h"
 #include "mapnode.h"
 #include "content_nodemeta.h"
+#include "settings.h"
 
 #define WATER_ALPHA 160
 
@@ -103,9 +104,9 @@ MapNode mapnode_translate_to_internal(MapNode n_from, u8 version)
 void content_mapnode_init()
 {
 	// Read some settings
-	bool new_style_water = g_settings.getBool("new_style_water");
-	bool new_style_leaves = g_settings.getBool("new_style_leaves");
-	bool invisible_stone = g_settings.getBool("invisible_stone");
+	bool new_style_water = g_settings->getBool("new_style_water");
+	bool new_style_leaves = g_settings->getBool("new_style_leaves");
+	bool invisible_stone = g_settings->getBool("invisible_stone");
 
 	content_t i;
 	ContentFeatures *f = NULL;
@@ -236,12 +237,16 @@ void content_mapnode_init()
 	if(new_style_leaves)
 	{
 		f->solidness = 0; // drawn separately, makes no faces
+		f->visual_solidness = 1;
+		f->setAllTextures("leaves.png");
 		f->setInventoryTextureCube("leaves.png", "leaves.png", "leaves.png");
 	}
 	else
 	{
 		f->setAllTextures("[noalpha:leaves.png");
 	}
+	f->extra_dug_item = std::string("MaterialItem2 ")+itos(CONTENT_SAPLING)+" 1";
+	f->extra_dug_item_rarity = 20;
 	f->dug_item = std::string("MaterialItem2 ")+itos(i)+" 1";
 	setWoodLikeDiggingProperties(f->digging_properties, 0.15);
 
@@ -287,6 +292,8 @@ void content_mapnode_init()
 	f->is_ground_content = true;
 	f->dug_item = std::string("MaterialItem2 ")+itos(i)+" 1";
 	f->solidness = 0; // drawn separately, makes no faces
+	f->visual_solidness = 1;
+	f->setAllTextures("glass.png");
 	f->setInventoryTextureCube("glass.png", "glass.png", "glass.png");
 	setWoodLikeDiggingProperties(f->digging_properties, 0.15);
 
@@ -384,7 +391,9 @@ void content_mapnode_init()
 	f->liquid_alternative_flowing = CONTENT_WATER;
 	f->liquid_alternative_source = CONTENT_WATERSOURCE;
 	f->liquid_viscosity = WATER_VISC;
+#ifndef SERVER
 	f->vertex_alpha = WATER_ALPHA;
+	f->post_effect_color = video::SColor(64, 100, 100, 200);
 	if(f->special_material == NULL && g_texturesource)
 	{
 		// Flowing water material
@@ -399,6 +408,7 @@ void content_mapnode_init()
 		f->special_material->setTexture(0, pa_water1->atlas);
 		f->special_atlas = pa_water1;
 	}
+#endif
 	
 	i = CONTENT_WATERSOURCE;
 	f = &content_features(i);
@@ -411,7 +421,7 @@ void content_mapnode_init()
 	else // old style
 	{
 		f->solidness = 1;
-
+#ifndef SERVER
 		TileSpec t;
 		if(g_texturesource)
 			t.texture = g_texturesource->getTexture("water.png");
@@ -420,6 +430,7 @@ void content_mapnode_init()
 		t.material_type = MATERIAL_ALPHA_VERTEX;
 		t.material_flags &= ~MATERIAL_FLAG_BACKFACE_CULLING;
 		f->setAllTiles(t);
+#endif
 	}
 	f->param_type = CPT_LIGHT;
 	f->light_propagates = true;
@@ -432,7 +443,9 @@ void content_mapnode_init()
 	f->liquid_alternative_flowing = CONTENT_WATER;
 	f->liquid_alternative_source = CONTENT_WATERSOURCE;
 	f->liquid_viscosity = WATER_VISC;
+#ifndef SERVER
 	f->vertex_alpha = WATER_ALPHA;
+	f->post_effect_color = video::SColor(64, 100, 100, 200);
 	if(f->special_material == NULL && g_texturesource)
 	{
 		// Flowing water material
@@ -447,6 +460,7 @@ void content_mapnode_init()
 		f->special_material->setTexture(0, pa_water1->atlas);
 		f->special_atlas = pa_water1;
 	}
+#endif
 	
 	i = CONTENT_LAVA;
 	f = &content_features(i);
@@ -465,6 +479,8 @@ void content_mapnode_init()
 	f->liquid_alternative_source = CONTENT_LAVASOURCE;
 	f->liquid_viscosity = LAVA_VISC;
 	f->damage_per_second = 4*2;
+#ifndef SERVER
+	f->post_effect_color = video::SColor(192, 255, 64, 0);
 	if(f->special_material == NULL && g_texturesource)
 	{
 		// Flowing lava material
@@ -480,6 +496,7 @@ void content_mapnode_init()
 		f->special_material->setTexture(0, pa_lava1->atlas);
 		f->special_atlas = pa_lava1;
 	}
+#endif
 	
 	i = CONTENT_LAVASOURCE;
 	f = &content_features(i);
@@ -491,7 +508,7 @@ void content_mapnode_init()
 	else // old style
 	{
 		f->solidness = 2;
-
+#ifndef SERVER
 		TileSpec t;
 		if(g_texturesource)
 			t.texture = g_texturesource->getTexture("lava.png");
@@ -500,6 +517,7 @@ void content_mapnode_init()
 		//t.material_type = MATERIAL_ALPHA_VERTEX;
 		//t.material_flags &= ~MATERIAL_FLAG_BACKFACE_CULLING;
 		f->setAllTiles(t);
+#endif
 	}
 	f->param_type = CPT_LIGHT;
 	f->light_propagates = false;
@@ -514,6 +532,8 @@ void content_mapnode_init()
 	f->liquid_alternative_source = CONTENT_LAVASOURCE;
 	f->liquid_viscosity = LAVA_VISC;
 	f->damage_per_second = 4*2;
+#ifndef SERVER
+	f->post_effect_color = video::SColor(192, 255, 64, 0);
 	if(f->special_material == NULL && g_texturesource)
 	{
 		// Flowing lava material
@@ -529,6 +549,7 @@ void content_mapnode_init()
 		f->special_material->setTexture(0, pa_lava1->atlas);
 		f->special_atlas = pa_lava1;
 	}
+#endif
 	
 	i = CONTENT_TORCH;
 	f = &content_features(i);
@@ -573,6 +594,20 @@ void content_mapnode_init()
 		f->initial_metadata = new ChestNodeMetadata();
 	setWoodLikeDiggingProperties(f->digging_properties, 1.0);
 	
+	i = CONTENT_LOCKABLE_CHEST;
+	f = &content_features(i);
+	f->param_type = CPT_FACEDIR_SIMPLE;
+	f->setAllTextures("chest_side.png");
+	f->setTexture(0, "chest_top.png");
+	f->setTexture(1, "chest_top.png");
+	f->setTexture(5, "chest_lock.png"); // Z-
+	f->setInventoryTexture("chest_lock.png");
+	//f->setInventoryTextureCube("chest_top.png", "chest_side.png", "chest_side.png");
+	f->dug_item = std::string("MaterialItem2 ")+itos(i)+" 1";
+	if(f->initial_metadata == NULL)
+		f->initial_metadata = new LockingChestNodeMetadata();
+	setWoodLikeDiggingProperties(f->digging_properties, 1.0);
+
 	i = CONTENT_FURNACE;
 	f = &content_features(i);
 	f->param_type = CPT_FACEDIR_SIMPLE;
@@ -629,6 +664,18 @@ void content_mapnode_init()
 	f->setInventoryTexture("nc_rb.png");
 	f->dug_item = std::string("MaterialItem2 ")+itos(i)+" 1";
 	setStoneLikeDiggingProperties(f->digging_properties, 3.0);
+
+	i = CONTENT_SAPLING;
+	f = &content_features(i);
+	f->param_type = CPT_LIGHT;
+	f->setAllTextures("sapling.png");
+	f->setInventoryTexture("sapling.png");
+	f->dug_item = std::string("MaterialItem2 ")+itos(i)+" 1";
+	f->light_propagates = true;
+	f->air_equivalent = false;
+	f->solidness = 0; // drawn separately, makes no faces
+	f->walkable = false;
+	f->digging_properties.set("", DiggingProperties(true, 0.0, 0));
 
 	i = CONTENT_BORDERSTONE;
 	f = &content_features(i);

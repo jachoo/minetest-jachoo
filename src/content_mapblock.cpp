@@ -22,6 +22,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "main.h" // For g_settings and g_texturesource
 #include "mineral.h"
 #include "mapblock_mesh.h" // For MapBlock_LightColor()
+#include "settings.h"
 
 #ifndef SERVER
 // Create a cuboid.
@@ -128,10 +129,10 @@ void mapblock_mesh_generate_special(MeshMakeData *data,
 	/*
 		Some settings
 	*/
-	bool new_style_water = g_settings.getBool("new_style_water");
-	bool new_style_leaves = g_settings.getBool("new_style_leaves");
-	//bool smooth_lighting = g_settings.getBool("smooth_lighting");
-	bool invisible_stone = g_settings.getBool("invisible_stone");
+	bool new_style_water = g_settings->getBool("new_style_water");
+	bool new_style_leaves = g_settings->getBool("new_style_leaves");
+	//bool smooth_lighting = g_settings->getBool("smooth_lighting");
+	bool invisible_stone = g_settings->getBool("invisible_stone");
 	
 	float node_liquid_level = 1.0;
 	if(new_style_water)
@@ -198,6 +199,18 @@ void mapblock_mesh_generate_special(MeshMakeData *data,
 	AtlasPointer pa_apple = g_texturesource->getTexture(
 			g_texturesource->getTextureId("apple.png"));
 	material_apple.setTexture(0, pa_apple.atlas);
+
+
+	// Sapling material
+	video::SMaterial material_sapling;
+	material_sapling.setFlag(video::EMF_LIGHTING, false);
+	material_sapling.setFlag(video::EMF_BILINEAR_FILTER, false);
+	material_sapling.setFlag(video::EMF_FOG_ENABLE, true);
+	material_sapling.MaterialType = video::EMT_TRANSPARENT_ALPHA_CHANNEL_REF;
+	AtlasPointer pa_sapling = g_texturesource->getTexture(
+			g_texturesource->getTextureId("sapling.png"));
+	material_sapling.setTexture(0, pa_sapling.atlas);
+
 
 	// junglegrass material
 	video::SMaterial material_junglegrass;
@@ -1316,6 +1329,55 @@ void mapblock_mesh_generate_special(MeshMakeData *data,
 				u16 indices[] = {0,1,2,2,3,0};
 				// Add to mesh collector
 				collector.append(material_apple, vertices, 4, indices, 6);
+			}
+		}
+		else if(n.getContent() == CONTENT_SAPLING) {
+		        u8 l = decode_light(undiminish_light(n.getLightBlend(data->m_daynight_ratio)));
+			video::SColor c = MapBlock_LightColor(255, l);
+
+			for(u32 j=0; j<4; j++)
+			{
+				video::S3DVertex vertices[4] =
+				{
+					video::S3DVertex(-BS/2,-BS/2,0, 0,0,0, c,
+						pa_sapling.x0(), pa_sapling.y1()),
+					video::S3DVertex(BS/2,-BS/2,0, 0,0,0, c,
+						pa_sapling.x1(), pa_sapling.y1()),
+					video::S3DVertex(BS/2,BS/1,0, 0,0,0, c,
+						pa_sapling.x1(), pa_sapling.y0()),
+					video::S3DVertex(-BS/2,BS/1,0, 0,0,0, c,
+						pa_sapling.x0(), pa_sapling.y0()),
+				};
+
+				if(j == 0)
+				{
+					for(u16 i=0; i<4; i++)
+						vertices[i].Pos.rotateXZBy(45);
+				}
+				else if(j == 1)
+				{
+					for(u16 i=0; i<4; i++)
+						vertices[i].Pos.rotateXZBy(-45);
+				}
+				else if(j == 2)
+				{
+					for(u16 i=0; i<4; i++)
+						vertices[i].Pos.rotateXZBy(135);
+				}
+				else if(j == 3)
+				{
+					for(u16 i=0; i<4; i++)
+						vertices[i].Pos.rotateXZBy(-135);
+				}
+
+				for(u16 i=0; i<4; i++)
+				{
+					vertices[i].Pos += intToFloat(p + blockpos_nodes, BS);
+				}
+
+				u16 indices[] = {0,1,2,2,3,0};
+				// Add to mesh collector
+				collector.append(material_sapling, vertices, 4, indices, 6);
 			}
 		}
 	}
