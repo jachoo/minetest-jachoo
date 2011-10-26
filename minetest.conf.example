@@ -39,6 +39,8 @@
 #keymap_jump = KEY_SPACE
 #keymap_sneak = KEY_LSHIFT
 #keymap_inventory = KEY_KEY_I
+# Go down ladder / go down in fly mode / go fast in fast mode
+#keymap_special1 = KEY_KEY_E
 #keymap_chat = KEY_KEY_T
 #keymap_rangeselect = KEY_KEY_R
 #keymap_freemove = KEY_KEY_K
@@ -46,7 +48,6 @@
 #keymap_frametime_graph = KEY_F1
 #keymap_screenshot = KEY_F12
 # Some (temporary) keys for debugging
-#keymap_special1 = KEY_KEY_E
 #keymap_print_debug_stacks = KEY_KEY_P
 
 # The desired FPS
@@ -58,8 +59,8 @@
 #viewing_range_nodes_max = 300
 #viewing_range_nodes_min = 25
 # Initial window size
-screenW# = 800
-screenH# = 600
+#screenW = 800
+#screenH = 600
 # Address to connect to (#blank = start local server)
 #address = 
 # Enable random user input, for testing
@@ -139,11 +140,11 @@ screenH# = 600
 # Player and object positions are sent at intervals specified by this
 #objectdata_interval = 0.2
 #active_object_send_range_blocks = 3
-#active_block_range = 5
+#active_block_range = 2
 #max_simultaneous_block_sends_per_client = 2
 #max_simultaneous_block_sends_server_total = 8
-#max_block_send_distance = 8
-#max_block_generate_distance = 8
+#max_block_send_distance = 7
+#max_block_generate_distance = 5
 #time_send_interval = 20
 # Length of day/night cycle. 72=20min, 360=4min, 1=24hour
 #time_speed = 72

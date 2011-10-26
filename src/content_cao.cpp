@@ -208,6 +208,35 @@ void ItemCAO::addToScene(scene::ISceneManager *smgr)
 	// This is needed for changing the texture in the future
 	m_node->setReadOnlyMaterials(true);
 	updateNodePos();
+
+	/*
+		Update image of node
+	*/
+
+	// Create an inventory item to see what is its image
+	std::istringstream is(m_inventorystring, std::ios_base::binary);
+	video::ITexture *texture = NULL;
+	try{
+		InventoryItem *item = NULL;
+		item = InventoryItem::deSerialize(is);
+		infostream<<__FUNCTION_NAME<<": m_inventorystring=\""
+				<<m_inventorystring<<"\" -> item="<<item
+				<<std::endl;
+		if(item)
+		{
+			texture = item->getImage();
+			delete item;
+		}
+	}
+	catch(SerializationError &e)
+	{
+		infostream<<"WARNING: "<<__FUNCTION_NAME
+				<<": error deSerializing inventorystring \""
+				<<m_inventorystring<<"\""<<std::endl;
+	}
+	
+	// Set meshbuffer texture
+	buf->getMaterial().setTexture(0, texture);
 }
 
 void ItemCAO::removeFromScene()
@@ -289,49 +318,6 @@ void ItemCAO::initialize(const std::string &data)
 	}
 	
 	updateNodePos();
-
-	/*
-		Update image of node
-	*/
-
-	if(m_node == NULL)
-		return;
-
-	scene::IMesh *mesh = m_node->getMesh();
-
-	if(mesh == NULL)
-		return;
-	
-	scene::IMeshBuffer *buf = mesh->getMeshBuffer(0);
-
-	if(buf == NULL)
-		return;
-
-	// Create an inventory item to see what is its image
-	std::istringstream is(m_inventorystring, std::ios_base::binary);
-	video::ITexture *texture = NULL;
-	try{
-		InventoryItem *item = NULL;
-		item = InventoryItem::deSerialize(is);
-		infostream<<__FUNCTION_NAME<<": m_inventorystring=\""
-				<<m_inventorystring<<"\" -> item="<<item
-				<<std::endl;
-		if(item)
-		{
-			texture = item->getImage();
-			delete item;
-		}
-	}
-	catch(SerializationError &e)
-	{
-		infostream<<"WARNING: "<<__FUNCTION_NAME
-				<<": error deSerializing inventorystring \""
-				<<m_inventorystring<<"\""<<std::endl;
-	}
-	
-	// Set meshbuffer texture
-	buf->getMaterial().setTexture(0, texture);
-	
 }
 
 /*
@@ -1007,11 +993,15 @@ void MobV2CAO::updateNodePos()
 void MobV2CAO::step(float dtime, ClientEnvironment *env)
 {
 	scene::MyBillboardSceneNode *bill = m_node;
+	if(!bill)
+		return;
 
 	pos_translator.translate(dtime);
 	
 	if(m_sprite_type == "humanoid_1"){
 		scene::ICameraSceneNode* camera = m_node->getSceneManager()->getActiveCamera();
+		if(!camera)
+			return;
 		v3f cam_to_mob = m_node->getAbsolutePosition() - camera->getAbsolutePosition();
 		cam_to_mob.normalize();
 		int col = 0;

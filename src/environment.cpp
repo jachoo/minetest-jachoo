@@ -653,6 +653,92 @@ void ServerEnvironment::activateBlock(MapBlock *block, u32 additional_dtime)
 	}
 }
 
+void ServerEnvironment::clearAllObjects()
+{
+	infostream<<"ServerEnvironment::clearAllObjects(): "
+			<<"Removing all active objects"<<std::endl;
+	core::list<u16> objects_to_remove;
+	for(core::map<u16, ServerActiveObject*>::Iterator
+			i = m_active_objects.getIterator();
+			i.atEnd()==false; i++)
+	{
+		ServerActiveObject* obj = i.getNode()->getValue();
+		u16 id = i.getNode()->getKey();		
+		v3f objectpos = obj->getBasePosition();	
+		// Delete static object if block is loaded
+		if(obj->m_static_exists){
+			MapBlock *block = m_map->getBlockNoCreateNoEx(obj->m_static_block);
+			if(block){
+				block->m_static_objects.remove(id);
+				block->raiseModified(MOD_STATE_WRITE_NEEDED);
+				obj->m_static_exists = false;
+			}
+		}
+		// If known by some client, don't delete immediately
+		if(obj->m_known_by_count > 0){
+			obj->m_pending_deactivation = true;
+			obj->m_removed = true;
+			continue;
+		}
+		// Delete active object
+		delete obj;
+		// Id to be removed from m_active_objects
+		objects_to_remove.push_back(id);
+	}
+	// Remove references from m_active_objects
+	for(core::list<u16>::Iterator i = objects_to_remove.begin();
+			i != objects_to_remove.end(); i++)
+	{
+		m_active_objects.remove(*i);
+	}
+
+	core::list<v3s16> loadable_blocks;
+	infostream<<"ServerEnvironment::clearAllObjects(): "
+			<<"Listing all loadable blocks"<<std::endl;
+	m_map->listAllLoadableBlocks(loadable_blocks);
+	infostream<<"ServerEnvironment::clearAllObjects(): "
+			<<"Done listing all loadable blocks: "
+			<<loadable_blocks.size()
+			<<", now clearing"<<std::endl;
+	u32 report_interval = loadable_blocks.size() / 10;
+	u32 num_blocks_checked = 0;
+	u32 num_blocks_cleared = 0;
+	u32 num_objs_cleared = 0;
+	for(core::list<v3s16>::Iterator i = loadable_blocks.begin();
+			i != loadable_blocks.end(); i++)
+	{
+		v3s16 p = *i;
+		MapBlock *block = m_map->emergeBlock(p, false);
+		if(!block){
+			errorstream<<"ServerEnvironment::clearAllObjects(): "
+					<<"Failed to emerge block "<<PP(p)<<std::endl;
+			continue;
+		}
+		u32 num_stored = block->m_static_objects.m_stored.size();
+		u32 num_active = block->m_static_objects.m_active.size();
+		if(num_stored != 0 || num_active != 0){
+			block->m_static_objects.m_stored.clear();
+			block->m_static_objects.m_active.clear();
+			block->raiseModified(MOD_STATE_WRITE_NEEDED);
+			num_objs_cleared += num_stored + num_active;
+			num_blocks_cleared++;
+		}
+		num_blocks_checked++;
+
+		if(num_blocks_checked % report_interval == 0){
+			float percent = 100.0 * (float)num_blocks_checked /
+					loadable_blocks.size();
+			infostream<<"ServerEnvironment::clearAllObjects(): "
+					<<"Cleared "<<num_objs_cleared<<" objects"
+					<<" in "<<num_blocks_cleared<<" blocks ("
+					<<percent<<"%)"<<std::endl;
+		}
+	}
+	infostream<<"ServerEnvironment::clearAllObjects(): "
+			<<"Finished: Cleared "<<num_objs_cleared<<" objects"
+			<<" in "<<num_blocks_cleared<<" blocks"<<std::endl;
+}
+
 static void getMob_dungeon_master(Settings &properties)
 {
 	properties.set("looks", "dungeon_master");
@@ -690,7 +776,7 @@ void ServerEnvironment::step(float dtime)
 		Handle players
 	*/
 	{
-		ScopeProfiler sp(g_profiler, "SEnv: handle players avg", SPT_LOWPASS);
+		ScopeProfiler sp(g_profiler, "SEnv: handle players avg", SPT_AVG);
 		for(core::list<Player*>::Iterator i = m_players.begin();
 				i != m_players.end(); i++)
 		{
@@ -732,7 +818,7 @@ void ServerEnvironment::step(float dtime)
 	*/
 	if(m_active_blocks_management_interval.step(dtime, 2.0))
 	{
-		ScopeProfiler sp(g_profiler, "SEnv: manage act. block list avg", SPT_LOWPASS);
+		ScopeProfiler sp(g_profiler, "SEnv: manage act. block list avg /2s", SPT_AVG);
 		/*
 			Get player block positions
 		*/
@@ -809,7 +895,7 @@ void ServerEnvironment::step(float dtime)
 	*/
 	if(m_active_blocks_nodemetadata_interval.step(dtime, 1.0))
 	{
-		ScopeProfiler sp(g_profiler, "SEnv: mess in act. blocks avg", SPT_LOWPASS);
+		ScopeProfiler sp(g_profiler, "SEnv: mess in act. blocks avg /1s", SPT_AVG);
 		
 		float dtime = 1.0;
 
@@ -848,7 +934,7 @@ void ServerEnvironment::step(float dtime)
 	
 	if(m_active_blocks_test_interval.step(dtime, 10.0))
 	{
-		ScopeProfiler sp(g_profiler, "SEnv: modify in blocks avg", SPT_LOWPASS);
+		ScopeProfiler sp(g_profiler, "SEnv: modify in blocks avg /10s", SPT_AVG);
 		//float dtime = 10.0;
 		
 		for(core::map<v3s16, bool>::Iterator
@@ -893,7 +979,18 @@ void ServerEnvironment::step(float dtime)
 				if(block==NULL)
 					continue;
 				active_object_count_wider +=
-						block->m_static_objects.m_active.size();
+						block->m_static_objects.m_active.size()
+						+ block->m_static_objects.m_stored.size();
+				
+				/*if(block->m_static_objects.m_stored.size() != 0){
+					errorstream<<"ServerEnvironment::step(): "
+							<<PP(block->getPos())<<" contains "
+							<<block->m_static_objects.m_stored.size()
+							<<" stored objects; "
+							<<"when spawning objects, when counting active "
+							<<"objects in wide area. relative position: "
+							<<"("<<x<<","<<y<<","<<z<<")"<<std::endl;
+				}*/
 			}
 
 			v3s16 p0;
@@ -1051,8 +1148,10 @@ void ServerEnvironment::step(float dtime)
 		Step active objects
 	*/
 	{
-		ScopeProfiler sp(g_profiler, "SEnv: step act. objs avg", SPT_LOWPASS);
+		ScopeProfiler sp(g_profiler, "SEnv: step act. objs avg", SPT_AVG);
 		//TimeTaker timer("Step active objects");
+
+		g_profiler->avg("SEnv: num of objects", m_active_objects.size());
 		
 		// This helps the objects to send data at the same time
 		bool send_recommended = false;
@@ -1092,7 +1191,7 @@ void ServerEnvironment::step(float dtime)
 	*/
 	if(m_object_management_interval.step(dtime, 0.5))
 	{
-		ScopeProfiler sp(g_profiler, "SEnv: remove removed objs avg", SPT_LOWPASS);
+		ScopeProfiler sp(g_profiler, "SEnv: remove removed objs avg /.5s", SPT_AVG);
 		/*
 			Remove objects that satisfy (m_removed && m_known_by_count==0)
 		*/
@@ -1347,21 +1446,24 @@ u16 ServerEnvironment::addActiveObjectRaw(ServerActiveObject *object,
 		bool set_changed)
 {
 	assert(object);
-	if(object->getId() == 0)
-	{
+	if(object->getId() == 0){
 		u16 new_id = getFreeServerActiveObjectId(m_active_objects);
 		if(new_id == 0)
 		{
-			infostream<<"ServerEnvironment::addActiveObjectRaw(): "
+			errorstream<<"ServerEnvironment::addActiveObjectRaw(): "
 					<<"no free ids available"<<std::endl;
 			delete object;
 			return 0;
 		}
 		object->setId(new_id);
 	}
+	else{
+		verbosestream<<"ServerEnvironment::addActiveObjectRaw(): "
+				<<"supplied with id "<<object->getId()<<std::endl;
+	}
 	if(isFreeServerActiveObjectId(object->getId(), m_active_objects) == false)
 	{
-		infostream<<"ServerEnvironment::addActiveObjectRaw(): "
+		errorstream<<"ServerEnvironment::addActiveObjectRaw(): "
 				<<"id is not free ("<<object->getId()<<")"<<std::endl;
 		delete object;
 		return 0;
@@ -1370,7 +1472,12 @@ u16 ServerEnvironment::addActiveObjectRaw(ServerActiveObject *object,
 			<<"added (id="<<object->getId()<<")"<<std::endl;*/
 			
 	m_active_objects.insert(object->getId(), object);
-
+  
+	verbosestream<<"ServerEnvironment::addActiveObjectRaw(): "
+			<<"Added id="<<object->getId()<<"; there are now "
+			<<m_active_objects.size()<<" active objects."
+			<<std::endl;
+	
 	// Add static object to active static list of the block
 	v3f objectpos = object->getBasePosition();
 	std::string staticdata = object->getStaticData();
@@ -1385,11 +1492,12 @@ u16 ServerEnvironment::addActiveObjectRaw(ServerActiveObject *object,
 		object->m_static_block = blockpos;
 
 		if(set_changed)
-			block->setChangedFlag();
+			block->raiseModified(MOD_STATE_WRITE_NEEDED);
 	}
 	else{
-		infostream<<"ServerEnv: Could not find a block for "
-				<<"storing newly added static active object"<<std::endl;
+		errorstream<<"ServerEnvironment::addActiveObjectRaw(): "
+				<<"could not find block for storing id="<<object->getId()
+				<<" statically"<<std::endl;
 	}
 
 	return object->getId();
@@ -1429,11 +1537,12 @@ void ServerEnvironment::removeRemovedObjects()
 		*/
 		if(obj->m_static_exists && obj->m_removed)
 		{
-			MapBlock *block = m_map->getBlockNoCreateNoEx(obj->m_static_block);
+			MapBlock *block = m_map->emergeBlock(obj->m_static_block);
 			if(block)
 			{
 				block->m_static_objects.remove(id);
-				block->setChangedFlag();
+				block->raiseModified(MOD_STATE_WRITE_NEEDED);
+				obj->m_static_exists = false;
 			}
 		}
 
@@ -1454,6 +1563,40 @@ void ServerEnvironment::removeRemovedObjects()
 	}
 }
 
+static void print_hexdump(std::ostream &o, const std::string &data)
+{
+	const int linelength = 16;
+	for(int l=0; ; l++){
+		int i0 = linelength * l;
+		bool at_end = false;
+		int thislinelength = linelength;
+		if(i0 + thislinelength > (int)data.size()){
+			thislinelength = data.size() - i0;
+			at_end = true;
+		}
+		for(int di=0; di<linelength; di++){
+			int i = i0 + di;
+			char buf[4];
+			if(di<thislinelength)
+				snprintf(buf, 4, "%.2x ", data[i]);
+			else
+				snprintf(buf, 4, "   ");
+			o<<buf;
+		}
+		o<<" ";
+		for(int di=0; di<thislinelength; di++){
+			int i = i0 + di;
+			if(data[i] >= 32)
+				o<<data[i];
+			else
+				o<<".";
+		}
+		o<<std::endl;
+		if(at_end)
+			break;
+	}
+}
+
 /*
 	Convert stored objects from blocks near the players to active.
 */
@@ -1464,6 +1607,21 @@ void ServerEnvironment::activateObjects(MapBlock *block)
 	// Ignore if no stored objects (to not set changed flag)
 	if(block->m_static_objects.m_stored.size() == 0)
 		return;
+	verbosestream<<"ServerEnvironment::activateObjects(): "
+			<<"activating objects of block "<<PP(block->getPos())
+			<<" ("<<block->m_static_objects.m_stored.size()
+			<<" objects)"<<std::endl;
+	bool large_amount = (block->m_static_objects.m_stored.size() > 49);
+	if(large_amount){
+		errorstream<<"suspiciously large amount of objects detected: "
+				<<block->m_static_objects.m_stored.size()<<" in "
+				<<PP(block->getPos())
+				<<"; removing all of them."<<std::endl;
+		// Clear stored list
+		block->m_static_objects.m_stored.clear();
+		block->raiseModified(MOD_STATE_WRITE_NEEDED);
+		return;
+	}
 	// A list for objects that couldn't be converted to static for some
 	// reason. They will be stored back.
 	core::list<StaticObject> new_stored;
@@ -1481,12 +1639,20 @@ void ServerEnvironment::activateObjects(MapBlock *block)
 		// If couldn't create object, store static data back.
 		if(obj==NULL)
 		{
+			errorstream<<"ServerEnvironment::activateObjects(): "
+					<<"failed to create active object from static object "
+					<<"in block "<<PP(s_obj.pos/BS)
+					<<" type="<<(int)s_obj.type<<" data:"<<std::endl;
+			print_hexdump(verbosestream, s_obj.data);
+			
 			new_stored.push_back(s_obj);
 			continue;
 		}
+		verbosestream<<"ServerEnvironment::activateObjects(): "
+				<<"activated static object pos="<<PP(s_obj.pos/BS)
+				<<" type="<<(int)s_obj.type<<std::endl;
 		// This will also add the object to the active static list
 		addActiveObjectRaw(obj, false);
-		//u16 id = addActiveObjectRaw(obj, false);
 	}
 	// Clear stored list
 	block->m_static_objects.m_stored.clear();
@@ -1498,13 +1664,18 @@ void ServerEnvironment::activateObjects(MapBlock *block)
 		StaticObject &s_obj = *i;
 		block->m_static_objects.m_stored.push_back(s_obj);
 	}
-	// Block has been modified
-	// NOTE: No it has not really. Save I/O here.
-	//block->setChangedFlag();
+	/*
+		Note: Block hasn't really been modified here.
+		The objects have just been activated and moved from the stored
+		static list to the active static list.
+		As such, the block is essentially the same.
+		Thus, do not call block->setChangedFlag().
+		Otherwise there would be a huge amount of unnecessary I/O.
+	*/
 }
 
 /*
-	Convert objects that are not in active blocks to static.
+	Convert objects that are not standing inside active blocks to static.
 
 	If m_known_by_count != 0, active object is not deleted, but static
 	data is still updated.
@@ -1524,11 +1695,15 @@ void ServerEnvironment::deactivateFarObjects(bool force_delete)
 		// This shouldn't happen but check it
 		if(obj == NULL)
 		{
-			infostream<<"NULL object found in ServerEnvironment"
+			errorstream<<"NULL object found in ServerEnvironment"
 					<<std::endl;
 			assert(0);
 			continue;
 		}
+
+		// If pending deactivation, let removeRemovedObjects() do it
+		if(obj->m_pending_deactivation)
+			continue;
 
 		u16 id = i.getNode()->getKey();		
 		v3f objectpos = obj->getBasePosition();	
@@ -1540,69 +1715,112 @@ void ServerEnvironment::deactivateFarObjects(bool force_delete)
 		if(m_active_blocks.contains(blockpos_o))
 			continue;
 
+		verbosestream<<"ServerEnvironment::deactivateFarObjects(): "
+				<<"deactivating object id="<<id<<" on inactive block "
+				<<PP(blockpos_o)<<std::endl;
+
+		// If known by some client, don't immediately delete.
+		bool pending_delete = (obj->m_known_by_count > 0 && !force_delete);
+
 		/*
 			Update the static data
 		*/
 
+		// Create new static object
+		std::string staticdata_new = obj->getStaticData();
+		StaticObject s_obj(obj->getType(), objectpos, staticdata_new);
+		
+		bool stays_in_same_block = false;
+		bool data_changed = true;
+
+		if(obj->m_static_exists){
+			if(obj->m_static_block == blockpos_o)
+				stays_in_same_block = true;
+
+			MapBlock *block = m_map->emergeBlock(obj->m_static_block, false);
+			
+			core::map<u16, StaticObject>::Node *n =
+					block->m_static_objects.m_active.find(id);
+			if(n){
+				StaticObject static_old = n->getValue();
+
+				if(static_old.data == staticdata_new &&
+						(static_old.pos - objectpos).getLength() < 2*BS)
+					data_changed = false;
+			} else {
+				errorstream<<"ServerEnvironment::deactivateFarObjects(): "
+						<<"id="<<id<<" m_static_exists=true but "
+						<<"static data doesn't actually exist in "
+						<<PP(obj->m_static_block)<<std::endl;
+			}
+		}
+		
 		// Delete old static object
-		MapBlock *oldblock = NULL;
 		if(obj->m_static_exists)
 		{
-			MapBlock *block = m_map->getBlockNoCreateNoEx
-					(obj->m_static_block);
+			MapBlock *block = m_map->emergeBlock(obj->m_static_block, false);
 			if(block)
 			{
 				block->m_static_objects.remove(id);
-				oldblock = block;
+				obj->m_static_exists = false;
+				// Only mark block as modified if data changed considerably
+				if(!stays_in_same_block || data_changed)
+					block->raiseModified(MOD_STATE_WRITE_NEEDED);
 			}
 		}
-		// Create new static object
-		std::string staticdata = obj->getStaticData();
-		StaticObject s_obj(obj->getType(), objectpos, staticdata);
+
 		// Add to the block where the object is located in
 		v3s16 blockpos = getNodeBlockPos(floatToInt(objectpos, BS));
 		// Get or generate the block
 		MapBlock *block = m_map->emergeBlock(blockpos);
 
-		/*MapBlock *block = m_map->getBlockNoCreateNoEx(blockpos);
-		if(block == NULL)
-		{
-			// Block not found. Is the old block still ok?
-			if(oldblock)
-				block = oldblock;
-			// Load from disk or generate
-			else
-				block = m_map->emergeBlock(blockpos);
-		}*/
-
 		if(block)
 		{
-			block->m_static_objects.insert(0, s_obj);
-			block->setChangedFlag();
-			obj->m_static_exists = true;
-			obj->m_static_block = block->getPos();
+			if(block->m_static_objects.m_stored.size() >= 49){
+				errorstream<<"ServerEnv: Trying to store id="<<obj->getId()
+						<<" statically but block "<<PP(blockpos)
+						<<" already contains "
+						<<block->m_static_objects.m_stored.size()
+						<<" (over 49) objects."
+						<<" Forcing delete."<<std::endl;
+				force_delete = true;
+			} else {
+				u16 new_id = pending_delete ? id : 0;
+				block->m_static_objects.insert(new_id, s_obj);
+				
+				// Only mark block as modified if data changed considerably
+				if(!stays_in_same_block || data_changed)
+					block->raiseModified(MOD_STATE_WRITE_NEEDED);
+				
+				obj->m_static_exists = true;
+				obj->m_static_block = block->getPos();
+			}
 		}
 		else{
-			infostream<<"ServerEnv: Could not find or generate "
-					<<"a block for storing static object"<<std::endl;
-			obj->m_static_exists = false;
+			errorstream<<"ServerEnv: Could not find or generate "
+					<<"a block for storing id="<<obj->getId()
+					<<" statically"<<std::endl;
 			continue;
 		}
 
 		/*
-			Delete active object if not known by some client,
-			else set pending deactivation
+			If known by some client, set pending deactivation.
+			Otherwise delete it immediately.
 		*/
 
-		// If known by some client, don't delete.
-		if(obj->m_known_by_count > 0 && force_delete == false)
+		if(pending_delete)
 		{
+			verbosestream<<"ServerEnvironment::deactivateFarObjects(): "
+					<<"object id="<<id<<" is known by clients"
+					<<"; not deleting yet"<<std::endl;
+
 			obj->m_pending_deactivation = true;
 			continue;
 		}
 		
-		/*infostream<<"Server: Stored static data. Deleting object."
-				<<std::endl;*/
+		verbosestream<<"ServerEnvironment::deactivateFarObjects(): "
+				<<"object id="<<id<<" is not known by clients"
+				<<"; deleting"<<std::endl;
 		// Delete active object
 		delete obj;
 		// Id to be removed from m_active_objects

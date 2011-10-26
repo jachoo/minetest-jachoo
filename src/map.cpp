@@ -21,7 +21,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "mapsector.h"
 #include "mapblock.h"
 #include "main.h"
+#ifndef SERVER
 #include "client.h"
+#endif
 #include "filesys.h"
 #include "utility.h"
 #include "voxel.h"
@@ -34,6 +36,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #endif
 #include "settings.h"
 #include "log.h"
+#include "profiler.h"
+
+#define PP(x) "("<<(x).X<<","<<(x).Y<<","<<(x).Z<<")"
 
 /*
 	SQLite format specification:
@@ -1833,9 +1838,14 @@ NodeMetadata* Map::getNodeMetadata(v3s16 p)
 	v3s16 blockpos = getNodeBlockPos(p);
 	v3s16 p_rel = p - blockpos*MAP_BLOCKSIZE;
 	MapBlock *block = getBlockNoCreateNoEx(blockpos);
-	if(block == NULL)
+	if(!block){
+		infostream<<"Map::getNodeMetadata(): Need to emerge "
+				<<PP(blockpos)<<std::endl;
+		block = emergeBlock(blockpos, false);
+	}
+	if(!block)
 	{
-		infostream<<"WARNING: Map::setNodeMetadata(): Block not found"
+		infostream<<"WARNING: Map::getNodeMetadata(): Block not found"
 				<<std::endl;
 		return NULL;
 	}
@@ -1848,7 +1858,12 @@ void Map::setNodeMetadata(v3s16 p, NodeMetadata *meta)
 	v3s16 blockpos = getNodeBlockPos(p);
 	v3s16 p_rel = p - blockpos*MAP_BLOCKSIZE;
 	MapBlock *block = getBlockNoCreateNoEx(blockpos);
-	if(block == NULL)
+	if(!block){
+		infostream<<"Map::setNodeMetadata(): Need to emerge "
+				<<PP(blockpos)<<std::endl;
+		block = emergeBlock(blockpos, false);
+	}
+	if(!block)
 	{
 		infostream<<"WARNING: Map::setNodeMetadata(): Block not found"
 				<<std::endl;
@@ -2624,152 +2639,6 @@ MapBlock * ServerMap::emergeBlock(v3s16 p, bool allow_generate)
 	return NULL;
 }
 
-#if 0
-	/*
-		Do not generate over-limit
-	*/
-	if(p.X < -MAP_GENERATION_LIMIT / MAP_BLOCKSIZE
-	|| p.X > MAP_GENERATION_LIMIT / MAP_BLOCKSIZE
-	|| p.Y < -MAP_GENERATION_LIMIT / MAP_BLOCKSIZE
-	|| p.Y > MAP_GENERATION_LIMIT / MAP_BLOCKSIZE
-	|| p.Z < -MAP_GENERATION_LIMIT / MAP_BLOCKSIZE
-	|| p.Z > MAP_GENERATION_LIMIT / MAP_BLOCKSIZE)
-		throw InvalidPositionException("emergeBlock(): pos. over limit");
-	
-	v2s16 p2d(p.X, p.Z);
-	s16 block_y = p.Y;
-	/*
-		This will create or load a sector if not found in memory.
-		If block exists on disk, it will be loaded.
-	*/
-	ServerMapSector *sector;
-	try{
-		sector = createSector(p2d);
-		//sector = emergeSector(p2d, changed_blocks);
-	}
-	catch(InvalidPositionException &e)
-	{
-		infostream<<"emergeBlock: createSector() failed: "
-				<<e.what()<<std::endl;
-		infostream<<"Path to failed sector: "<<getSectorDir(p2d)
-				<<std::endl
-				<<"You could try to delete it."<<std::endl;
-		throw e;
-	}
-	catch(VersionMismatchException &e)
-	{
-		infostream<<"emergeBlock: createSector() failed: "
-				<<e.what()<<std::endl;
-		infostream<<"Path to failed sector: "<<getSectorDir(p2d)
-				<<std::endl
-				<<"You could try to delete it."<<std::endl;
-		throw e;
-	}
-
-	/*
-		Try to get a block from the sector
-	*/
-
-	bool does_not_exist = false;
-	bool lighting_expired = false;
-	MapBlock *block = sector->getBlockNoCreateNoEx(block_y);
-	
-	// If not found, try loading from disk
-	if(block == NULL)
-	{
-		block = loadBlock(p);
-	}
-	
-	// Handle result
-	if(block == NULL)
-	{
-		does_not_exist = true;
-	}
-	else if(block->isDummy() == true)
-	{
-		does_not_exist = true;
-	}
-	else if(block->getLightingExpired())
-	{
-		lighting_expired = true;
-	}
-	else
-	{
-		// Valid block
-		//infostream<<"emergeBlock(): Returning already valid block"<<std::endl;
-		return block;
-	}
-	
-	/*
-		If block was not found on disk and not going to generate a
-		new one, make sure there is a dummy block in place.
-	*/
-	if(only_from_disk && (does_not_exist || lighting_expired))
-	{
-		//infostream<<"emergeBlock(): Was not on disk but not generating"<<std::endl;
-
-		if(block == NULL)
-		{
-			// Create dummy block
-			block = new MapBlock(this, p, true);
-
-			// Add block to sector
-			sector->insertBlock(block);
-		}
-		// Done.
-		return block;
-	}
-
-	//infostream<<"Not found on disk, generating."<<std::endl;
-	// 0ms
-	//TimeTaker("emergeBlock() generate");
-
-	//infostream<<"emergeBlock(): Didn't find valid block -> making one"<<std::endl;
-
-	/*
-		If the block doesn't exist, generate the block.
-	*/
-	if(does_not_exist)
-	{
-		block = generateBlock(p, block, sector, changed_blocks,
-				lighting_invalidated_blocks); 
-	}
-
-	if(lighting_expired)
-	{
-		lighting_invalidated_blocks.insert(p, block);
-	}
-
-#if 0
-	/*
-		Initially update sunlight
-	*/
-	{
-		core::map<v3s16, bool> light_sources;
-		bool black_air_left = false;
-		bool bottom_invalid =
-				block->propagateSunlight(light_sources, true,
-				&black_air_left);
-
-		// If sunlight didn't reach everywhere and part of block is
-		// above ground, lighting has to be properly updated
-		//if(black_air_left && some_part_underground)
-		if(black_air_left)
-		{
-			lighting_invalidated_blocks[block->getPos()] = block;
-		}
-
-		if(bottom_invalid)
-		{
-			lighting_invalidated_blocks[block->getPos()] = block;
-		}
-	}
-#endif
-	
-	return block;
-}
-#endif
-
 s16 ServerMap::findGroundLevel(v2s16 p2d)
 {
 #if 0
@@ -2866,6 +2735,12 @@ void ServerMap::verifyDatabase() {
 		if(d != SQLITE_OK) {
 			infostream<<"WARNING: Database write statment failed to prepare: "<<sqlite3_errmsg(m_database)<<std::endl;
 			throw FileNotGoodException("Cannot prepare write statement");
+		}
+		
+		d = sqlite3_prepare(m_database, "SELECT `pos` FROM `blocks`", -1, &m_database_list, NULL);
+		if(d != SQLITE_OK) {
+			infostream<<"WARNING: Database list statment failed to prepare: "<<sqlite3_errmsg(m_database)<<std::endl;
+			throw FileNotGoodException("Cannot prepare read statement");
 		}
 		
 		infostream<<"Server: Database opened"<<std::endl;
@@ -3037,6 +2912,52 @@ void ServerMap::save(bool only_changed)
 				<<block_count<<" block files"
 				<<", "<<block_count_all<<" blocks in memory."
 				<<std::endl;
+	}
+}
+
+static s32 unsignedToSigned(s32 i, s32 max_positive)
+{
+	if(i < max_positive)
+		return i;
+	else
+		return i - 2*max_positive;
+}
+
+// modulo of a negative number does not work consistently in C
+static sqlite3_int64 pythonmodulo(sqlite3_int64 i, sqlite3_int64 mod)
+{
+	if(i >= 0)
+		return i % mod;
+	return mod - ((-i) % mod);
+}
+
+v3s16 ServerMap::getIntegerAsBlock(sqlite3_int64 i)
+{
+	s32 x = unsignedToSigned(pythonmodulo(i, 4096), 2048);
+	i = (i - x) / 4096;
+	s32 y = unsignedToSigned(pythonmodulo(i, 4096), 2048);
+	i = (i - y) / 4096;
+	s32 z = unsignedToSigned(pythonmodulo(i, 4096), 2048);
+	return v3s16(x,y,z);
+}
+
+void ServerMap::listAllLoadableBlocks(core::list<v3s16> &dst)
+{
+	if(loadFromFolders()){
+		errorstream<<"Map::listAllLoadableBlocks(): Result will be missing "
+				<<"all blocks that are stored in flat files"<<std::endl;
+	}
+	
+	{
+		verifyDatabase();
+		
+		while(sqlite3_step(m_database_list) == SQLITE_ROW)
+		{
+			sqlite3_int64 block_i = sqlite3_column_int64(m_database_list, 0);
+			v3s16 p = getIntegerAsBlock(block_i);
+			//dstream<<"block_i="<<block_i<<" p="<<PP(p)<<std::endl;
+			dst.push_back(p);
+		}
 	}
 }
 
@@ -3752,22 +3673,35 @@ void ClientMap::renderMap(video::IVideoDriver* driver, s32 pass)
 	v3s16 p_nodes_max = cam_pos_nodes + box_nodes_d;
 
 	// Take a fair amount as we will be dropping more out later
+	// Umm... these additions are a bit strange but they are needed.
 	v3s16 p_blocks_min(
-			p_nodes_min.X / MAP_BLOCKSIZE - 2,
-			p_nodes_min.Y / MAP_BLOCKSIZE - 2,
-			p_nodes_min.Z / MAP_BLOCKSIZE - 2);
+			p_nodes_min.X / MAP_BLOCKSIZE - 3,
+			p_nodes_min.Y / MAP_BLOCKSIZE - 3,
+			p_nodes_min.Z / MAP_BLOCKSIZE - 3);
 	v3s16 p_blocks_max(
 			p_nodes_max.X / MAP_BLOCKSIZE + 1,
 			p_nodes_max.Y / MAP_BLOCKSIZE + 1,
 			p_nodes_max.Z / MAP_BLOCKSIZE + 1);
 	
 	u32 vertex_count = 0;
+	u32 meshbuffer_count = 0;
 	
 	// For limiting number of mesh updates per frame
 	u32 mesh_update_count = 0;
 	
+	// Number of blocks in rendering range
+	u32 blocks_in_range = 0;
+	// Number of blocks in rendering range but don't have a mesh
+	u32 blocks_in_range_without_mesh = 0;
+	// Blocks that had mesh that would have been drawn according to
+	// rendering range (if max blocks limit didn't kick in)
 	u32 blocks_would_have_drawn = 0;
+	// Blocks that were drawn and had a mesh
 	u32 blocks_drawn = 0;
+	// Blocks which had a corresponding meshbuffer for this pass
+	u32 blocks_had_pass_meshbuf = 0;
+	// Blocks from which stuff was actually drawn
+	u32 blocks_without_stuff = 0;
 
 	int timecheck_counter = 0;
 	core::map<v2s16, MapSector*>::Iterator si;
@@ -3840,6 +3774,8 @@ void ClientMap::renderMap(video::IVideoDriver* driver, s32 pass)
 			/*if(m_control.range_all == false &&
 					d - 0.5*BS*MAP_BLOCKSIZE > range)
 				continue;*/
+			
+			blocks_in_range++;
 
 #if 1
 			/*
@@ -3858,8 +3794,10 @@ void ClientMap::renderMap(video::IVideoDriver* driver, s32 pass)
 
 				// Mesh has not been expired and there is no mesh:
 				// block has no content
-				if(block->mesh == NULL && mesh_expired == false)
+				if(block->mesh == NULL && mesh_expired == false){
+					blocks_in_range_without_mesh++;
 					continue;
+				}
 			}
 
 			f32 faraway = BS*50;
@@ -3897,9 +3835,11 @@ void ClientMap::renderMap(video::IVideoDriver* driver, s32 pass)
 				JMutexAutoLock lock(block->mesh_mutex);
 
 				scene::SMesh *mesh = block->mesh;
-
-				if(mesh == NULL)
+				
+				if(mesh == NULL){
+					blocks_in_range_without_mesh++;
 					continue;
+				}
 				
 				blocks_would_have_drawn++;
 				if(blocks_drawn >= m_control.wanted_max_blocks
@@ -3911,7 +3851,7 @@ void ClientMap::renderMap(video::IVideoDriver* driver, s32 pass)
 				sector_blocks_drawn++;
 
 				u32 c = mesh->getMeshBufferCount();
-
+				bool stuff_actually_drawn = false;
 				for(u32 i=0; i<c; i++)
 				{
 					scene::IMeshBuffer *buf = mesh->getMeshBuffer(i);
@@ -3922,16 +3862,25 @@ void ClientMap::renderMap(video::IVideoDriver* driver, s32 pass)
 					// Render transparent on transparent pass and likewise.
 					if(transparent == is_transparent_pass)
 					{
+						if(buf->getVertexCount() == 0)
+							errorstream<<"Block ["<<analyze_block(block)
+									<<"] contains an empty meshbuf"<<std::endl;
 						/*
 							This *shouldn't* hurt too much because Irrlicht
 							doesn't change opengl textures if the old
-							material is set again.
+							material has the same texture.
 						*/
 						driver->setMaterial(buf->getMaterial());
 						driver->drawMeshBuffer(buf);
 						vertex_count += buf->getVertexCount();
+						meshbuffer_count++;
+						stuff_actually_drawn = true;
 					}
 				}
+				if(stuff_actually_drawn)
+					blocks_had_pass_meshbuf++;
+				else
+					blocks_without_stuff++;
 			}
 		} // foreach sectorblocks
 
@@ -3941,6 +3890,30 @@ void ClientMap::renderMap(video::IVideoDriver* driver, s32 pass)
 		}
 	}
 	
+	std::string prefix = "CM: ";
+
+	// Log only on solid pass because values are the same
+	if(pass == scene::ESNRP_SOLID){
+		g_profiler->avg(prefix+"blocks in range", blocks_in_range);
+		if(blocks_in_range != 0)
+			g_profiler->avg(prefix+"blocks in range without mesh (frac)",
+					(float)blocks_in_range_without_mesh/blocks_in_range);
+		g_profiler->avg(prefix+"blocks drawn", blocks_drawn);
+	}
+	
+	if(pass == scene::ESNRP_SOLID)
+		prefix = "CM: solid: ";
+	else
+		prefix = "CM: transparent: ";
+
+	g_profiler->avg(prefix+"vertices drawn", vertex_count);
+	if(blocks_had_pass_meshbuf != 0)
+		g_profiler->avg(prefix+"meshbuffers per block",
+				(float)meshbuffer_count / (float)blocks_had_pass_meshbuf);
+	if(blocks_drawn != 0)
+		g_profiler->avg(prefix+"empty blocks (frac)",
+				(float)blocks_without_stuff / blocks_drawn);
+
 	m_control.blocks_drawn = blocks_drawn;
 	m_control.blocks_would_have_drawn = blocks_would_have_drawn;
 

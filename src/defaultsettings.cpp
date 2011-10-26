@@ -36,6 +36,7 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("keymap_jump", "KEY_SPACE");
 	settings->setDefault("keymap_sneak", "KEY_LSHIFT");
 	settings->setDefault("keymap_inventory", "KEY_KEY_I");
+	settings->setDefault("keymap_special1", "KEY_KEY_E");
 	settings->setDefault("keymap_chat", "KEY_KEY_T");
 	settings->setDefault("keymap_cmd", "/");
 	settings->setDefault("keymap_rangeselect", "KEY_KEY_R");
@@ -43,8 +44,9 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("keymap_fastmove", "KEY_KEY_J");
 	settings->setDefault("keymap_frametime_graph", "KEY_F1");
 	settings->setDefault("keymap_screenshot", "KEY_F12");
+	settings->setDefault("keymap_toggle_profiler", "KEY_F2");
+	settings->setDefault("keymap_toggle_force_fog_off", "KEY_F3");
 	// Some (temporary) keys for debugging
-	settings->setDefault("keymap_special1", "KEY_KEY_E");
 	settings->setDefault("keymap_print_debug_stacks", "KEY_KEY_P");
 
 	settings->setDefault("wanted_fps", "30");
@@ -75,6 +77,7 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("invisible_stone", "false");
 	settings->setDefault("screenshot_path", ".");
 	settings->setDefault("view_bobbing_amount", "1.0");
+	settings->setDefault("enable_2d_clouds", "false");
 
 	// Server stuff
 	// "map-dir" doesn't exist by default.
@@ -93,13 +96,13 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("enable_mapgen_debug_info", "false");
 	settings->setDefault("objectdata_interval", "0.2");
 	settings->setDefault("active_object_send_range_blocks", "3");
-	settings->setDefault("active_block_range", "5");
+	settings->setDefault("active_block_range", "2");
 	//settings->setDefault("max_simultaneous_block_sends_per_client", "1");
 	// This causes frametime jitter on client side, or does it?
 	settings->setDefault("max_simultaneous_block_sends_per_client", "2");
 	settings->setDefault("max_simultaneous_block_sends_server_total", "8");
-	settings->setDefault("max_block_send_distance", "8");
-	settings->setDefault("max_block_generate_distance", "8");
+	settings->setDefault("max_block_send_distance", "7");
+	settings->setDefault("max_block_generate_distance", "5");
 	settings->setDefault("time_send_interval", "20");
 	settings->setDefault("time_speed", "96");
 	settings->setDefault("server_unload_unused_data_timeout", "60");

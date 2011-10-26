@@ -450,10 +450,15 @@ void getPointedNode(Client *client, v3f player_position,
 			v3f cpf = npf + dir_f;
 			f32 distance = (cpf - camera_position).getLength();
 
-			v3f vertices[4] =
+			/*v3f vertices[4] =
 			{
 				v3f(BS*0.42,-BS*0.4,-BS*0.4),
 				v3f(BS*0.49, BS*0.4, BS*0.4),
+			};*/
+			v3f vertices[4] =
+			{
+				v3f(BS*0.42,-BS*0.8,-BS*0.8),
+				v3f(BS*0.49, BS*0.8, BS*0.8),
 			};
 
 			for(s32 i=0; i<2; i++)
@@ -922,7 +927,6 @@ void the_game(
 			L"",
 			core::rect<s32>(5, 5+(text_height+5)*1, 795, (5+text_height)*2),
 			false, false, guiroot);
-	
 	// At the middle of the screen
 	// Object infos are shown in this
 	gui::IGUIStaticText *guitext_info = guienv->addStaticText(
@@ -944,6 +948,15 @@ void the_game(
 			false, true, guiroot);
 	//guitext_chat->setBackgroundColor(video::SColor(96,0,0,0));
 	core::list<ChatLine> chat_lines;
+	
+	// Profiler text
+	gui::IGUIStaticText *guitext_profiler = guienv->addStaticText(
+			L"<Profiler>",
+			core::rect<s32>(6, 4+(text_height+5)*3, 400,
+			(text_height+5)*3 + text_height*35),
+			false, false);
+	guitext_profiler->setBackgroundColor(video::SColor(80,0,0,0));
+	guitext_profiler->setVisible(false);
 	
 	/*GUIQuickInventory *quick_inventory = new GUIQuickInventory
 			(guienv, NULL, v2s32(10, 70), 5, &local_inventory);*/
@@ -997,6 +1010,10 @@ void the_game(
 	bool invert_mouse = g_settings->getBool("invert_mouse");
 
 	bool respawn_menu_active = false;
+
+	bool show_profiler = false;
+
+	bool force_fog_off = false;
 
 	/*
 		Main loop
@@ -1129,7 +1146,8 @@ void the_game(
 
 		object_hit_delay_timer -= dtime;
 
-		g_profiler->add("Elapsed time", dtime * 1000);
+		g_profiler->add("Elapsed time", dtime);
+		g_profiler->avg("FPS", 1./dtime);
 
 		/*
 			Log frametime for visualization
@@ -1220,15 +1238,24 @@ void the_game(
 		*/
 		float profiler_print_interval =
 				g_settings->getFloat("profiler_print_interval");
-		if(profiler_print_interval != 0)
+		bool print_to_log = true;
+		if(profiler_print_interval == 0){
+			print_to_log = false;
+			profiler_print_interval = 5;
+		}
+		if(m_profiler_interval.step(dtime, profiler_print_interval))
 		{
-			if(m_profiler_interval.step(0.030, profiler_print_interval))
-			{
+			if(print_to_log){
 				infostream<<"Profiler:"<<std::endl;
 				g_profiler->print(infostream);
+			}
+
+			std::ostringstream os(std::ios_base::binary);
+			g_profiler->print(os);
+			guitext_profiler->setText(narrow_to_wide(os.str()).c_str());
+
 				g_profiler->clear();
 			}
-		}
 
 		/*
 			Direct handling of user input
@@ -1356,6 +1383,15 @@ void the_game(
 				}
 				image->drop(); 
 			}			 
+		}
+		else if(input->wasKeyDown(getKeySetting("keymap_toggle_profiler")))
+		{
+			show_profiler = !show_profiler;
+			guitext_profiler->setVisible(show_profiler);
+		}
+		else if(input->wasKeyDown(getKeySetting("keymap_toggle_force_fog_off")))
+		{
+			force_fog_off = !force_fog_off;
 		}
 
 		// Item selection with mouse wheel
@@ -2043,7 +2079,7 @@ void the_game(
 			Fog
 		*/
 		
-		if(g_settings->getBool("enable_fog") == true)
+		if(g_settings->getBool("enable_fog") == true && !force_fog_off)
 		{
 			f32 range;
 			if(farmesh)
@@ -2053,10 +2089,11 @@ void the_game(
 			else
 			{
 				range = draw_control.wanted_range*BS + MAP_BLOCKSIZE*BS*1.5;
+				range *= 0.9;
 				if(draw_control.range_all)
 					range = 100000*BS;
-				if(range < 50*BS)
-					range = range * 0.5 + 25*BS;
+				/*if(range < 50*BS)
+					range = range * 0.5 + 25*BS;*/
 			}
 
 			driver->setFog(
@@ -2121,14 +2158,15 @@ void the_game(
 					"(% .1f, % .1f, % .1f)"
 					" (% .3f < btime_jitter < % .3f"
 					", dtime_jitter = % .1f %%"
-					", v_range = %.1f)",
+					", v_range = %.1f, RTT = %.3f)",
 					player_position.X/BS,
 					player_position.Y/BS,
 					player_position.Z/BS,
 					busytime_jitter1_min_sample,
 					busytime_jitter1_max_sample,
 					dtime_jitter1_max_fraction * 100.0,
-					draw_control.wanted_range
+					draw_control.wanted_range,
+					client.getRTT()
 					);
 
 			guitext2->setText(narrow_to_wide(temptext).c_str());
@@ -2210,7 +2248,8 @@ void the_game(
 
 			guitext_chat->setRelativePosition(rect);
 
-			if(chat_lines.size() == 0)
+			// Don't show chat if empty or profiler is enabled
+			if(chat_lines.size() == 0 || show_profiler)
 				guitext_chat->setVisible(false);
 			else
 				guitext_chat->setVisible(true);

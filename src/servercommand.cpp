@@ -251,19 +251,18 @@ void cmd_banunban(std::wostringstream &os, ServerCommandContext *ctx)
 			return;
 		}
 
-		con::Peer *peer = ctx->server->getPeerNoEx(player->peer_id);
-		if(peer == NULL)
-		{
-			dstream<<__FUNCTION_NAME<<": peer was not found"<<std::endl;
-			return;
-		}
-		std::string ip_string = peer->address.serializeString();
+		try{
+			Address address = ctx->server->getPeerAddress(player->peer_id);
+			std::string ip_string = address.serializeString();
 		ctx->server->setIpBanned(ip_string, player->getName());
 		os<<L"-!- Banned "<<narrow_to_wide(ip_string)<<L"|"
 				<<narrow_to_wide(player->getName());
 
 		actionstream<<ctx->player->getName()<<" bans "
 				<<player->getName()<<" / "<<ip_string<<std::endl;
+		} catch(con::PeerNotFoundException){
+			dstream<<__FUNCTION_NAME<<": peer was not found"<<std::endl;
+	}
 	}
 	else
 	{
@@ -276,6 +275,36 @@ void cmd_banunban(std::wostringstream &os, ServerCommandContext *ctx)
 				<<ip_or_name<<std::endl;
 	}
 }
+
+void cmd_clearobjects(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	if((ctx->privs & PRIV_SERVER) ==0)
+	{
+		os<<L"-!- You don't have permission to do that";
+		return;
+	}
+
+	actionstream<<ctx->player->getName()
+			<<" clears all objects"<<std::endl;
+	
+	{
+		std::wstring msg;
+		msg += L"Clearing all objects. This may take long.";
+		msg += L" You may experience a timeout. (by ";
+		msg += narrow_to_wide(ctx->player->getName());
+		msg += L")";
+		ctx->server->notifyPlayers(msg);
+	}
+
+	ctx->env->clearAllObjects();
+					
+	actionstream<<"object clearing done"<<std::endl;
+	
+	os<<L"*** cleared all objects";
+	ctx->flags |= SEND_TO_OTHERS;
+}
+
 
 //j
 void cmd_clanNew(std::wostringstream &os,
@@ -454,41 +483,25 @@ std::wstring processServerCommand(ServerCommandContext *ctx)
 			os<<L" ban unban";
 	}
 	else if(ctx->parms[0] == L"status")
-	{
 		cmd_status(os, ctx);
-	}
 	else if(ctx->parms[0] == L"privs")
-	{
 		cmd_privs(os, ctx);
-	}
 	else if(ctx->parms[0] == L"grant" || ctx->parms[0] == L"revoke")
-	{
 		cmd_grantrevoke(os, ctx);
-	}
 	else if(ctx->parms[0] == L"time")
-	{
 		cmd_time(os, ctx);
-	}
 	else if(ctx->parms[0] == L"shutdown")
-	{
 		cmd_shutdown(os, ctx);
-	}
 	else if(ctx->parms[0] == L"setting")
-	{
 		cmd_setting(os, ctx);
-	}
 	else if(ctx->parms[0] == L"teleport")
-	{
 		cmd_teleport(os, ctx);
-	}
 	else if(ctx->parms[0] == L"ban" || ctx->parms[0] == L"unban")
-	{
 		cmd_banunban(os, ctx);
-	}
 	else if(ctx->parms[0] == L"me")
-	{
 		cmd_me(os, ctx);
-	}
+	else if(ctx->parms[0] == L"clearobjects")
+		cmd_clearobjects(os, ctx);
 	else if(ctx->parms[0] == L"clan-new")
 	{
 		cmd_clanNew(os, ctx);
@@ -506,9 +519,8 @@ std::wstring processServerCommand(ServerCommandContext *ctx)
 		cmd_clanKick(os, ctx);
 	}
 	else
-	{
 		os<<L"-!- Invalid command: " + ctx->parms[0];
-	}
+	
 	return os.str();
 }
 

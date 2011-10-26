@@ -225,6 +225,11 @@ public:
 
 	void addActiveBlockModifier(ActiveBlockModifier *abm);
 
+	/* Other stuff */
+	
+	// Clear all objects, loading and going through every MapBlock
+	void clearAllObjects();
+
 private:
 
 	/*

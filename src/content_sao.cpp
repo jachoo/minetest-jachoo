@@ -21,6 +21,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "collision.h"
 #include "environment.h"
 #include "settings.h"
+#include "profiler.h"
 
 core::map<u16, ServerActiveObject::Factory> ServerActiveObject::m_types;
 
@@ -137,6 +138,8 @@ ServerActiveObject* ItemSAO::create(ServerEnvironment *env, u16 id, v3f pos,
 
 void ItemSAO::step(float dtime, bool send_recommended)
 {
+	ScopeProfiler sp2(g_profiler, "ItemSAO::step avg", SPT_AVG);
+
 	assert(m_env);
 
 	const float interval = 0.2;
@@ -291,6 +294,8 @@ ServerActiveObject* RatSAO::create(ServerEnvironment *env, u16 id, v3f pos,
 
 void RatSAO::step(float dtime, bool send_recommended)
 {
+	ScopeProfiler sp2(g_profiler, "RatSAO::step avg", SPT_AVG);
+
 	assert(m_env);
 
 	if(m_is_active == false)
@@ -480,6 +485,8 @@ ServerActiveObject* Oerkki1SAO::create(ServerEnvironment *env, u16 id, v3f pos,
 
 void Oerkki1SAO::step(float dtime, bool send_recommended)
 {
+	ScopeProfiler sp2(g_profiler, "Oerkki1SAO::step avg", SPT_AVG);
+
 	assert(m_env);
 
 	if(m_is_active == false)
@@ -677,11 +684,25 @@ std::string Oerkki1SAO::getStaticData()
 	return os.str();
 }
 
-u16 Oerkki1SAO::punch(const std::string &toolname, v3f dir)
+u16 Oerkki1SAO::punch(const std::string &toolname, v3f dir,
+		const std::string &playername)
 {
 	m_speed_f += dir*12*BS;
 
-	u16 amount = 20;
+	u16 amount = 5;
+	/* See tool names in inventory.h */
+	if(toolname == "WSword")
+		amount = 10;
+	if(toolname == "STSword")
+		amount = 12;
+	if(toolname == "SteelSword")
+		amount = 16;
+	if(toolname == "STAxe")
+		amount = 7;
+	if(toolname == "SteelAxe")
+		amount = 9;
+	if(toolname == "SteelPick")
+		amount = 7;
 	doDamage(amount);
 	return 65536/100;
 }
@@ -752,6 +773,8 @@ ServerActiveObject* FireflySAO::create(ServerEnvironment *env, u16 id, v3f pos,
 
 void FireflySAO::step(float dtime, bool send_recommended)
 {
+	ScopeProfiler sp2(g_profiler, "FireflySAO::step avg", SPT_AVG);
+
 	assert(m_env);
 
 	if(m_is_active == false)
@@ -1065,6 +1088,8 @@ static void explodeSquare(Map *map, v3s16 p0, v3s16 size)
 
 void MobV2SAO::step(float dtime, bool send_recommended)
 {
+	ScopeProfiler sp2(g_profiler, "MobV2SAO::step avg", SPT_AVG);
+
 	assert(m_env);
 	Map *map = &m_env->getMap();
 
@@ -1239,8 +1264,6 @@ void MobV2SAO::step(float dtime, bool send_recommended)
 			m_base_position = pos_f;
 
 			if((pos_f - next_pos_f).getLength() < 0.1 || arrived){
-				verbosestream<<"Mob id="<<m_id<<": arrived to "
-						<<PP(m_next_pos_i)<<std::endl;
 				m_next_pos_exists = false;
 			}
 		}

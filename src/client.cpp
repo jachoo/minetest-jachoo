@@ -156,7 +156,7 @@ void * MeshUpdateThread::Thread()
 			continue;
 		}
 
-		ScopeProfiler sp(g_profiler, "mesh make");
+		ScopeProfiler sp(g_profiler, "Client: Mesh making");
 
 		scene::SMesh *mesh_new = NULL;
 		mesh_new = makeMapBlockMesh(q->data);
@@ -246,7 +246,7 @@ void Client::connect(Address address)
 {
 	DSTACK(__FUNCTION_NAME);
 	//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
-	m_con.setTimeoutMs(0);
+	m_con.SetTimeoutMs(0);
 	m_con.Connect(address);
 }
 
@@ -563,8 +563,8 @@ void Client::step(float dtime)
 			counter = 0.0;
 			//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
 			// connectedAndInitialized() is true, peer exists.
-			con::Peer *peer = m_con.GetPeer(PEER_ID_SERVER);
-			infostream<<"Client: avg_rtt="<<peer->avg_rtt<<std::endl;
+			float avg_rtt = m_con.GetPeerAvgRTT(PEER_ID_SERVER);
+			infostream<<"Client: avg_rtt="<<avg_rtt<<std::endl;
 		}
 	}
 
@@ -707,14 +707,6 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 				"coming from server: peer_id="<<sender_peer_id
 				<<std::endl;
 		return;
-	}
-
-	con::Peer *peer;
-	{
-		//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
-		// All data is coming from the server
-		// PeerNotFoundException is handled by caller.
-		peer = m_con.GetPeer(PEER_ID_SERVER);
 	}
 
 	u8 ser_version = m_server_ser_ver;
@@ -2254,4 +2246,12 @@ ClientEvent Client::getClientEvent()
 	return m_client_event_queue.pop_front();
 }
 
+float Client::getRTT(void)
+{
+	try{
+		return m_con.GetPeerAvgRTT(PEER_ID_SERVER);
+	} catch(con::PeerNotFoundException &e){
+		return 1337;
+	}
+}
 

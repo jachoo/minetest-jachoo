@@ -354,11 +354,10 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 	
 	// Increment timers
 	m_nothing_to_send_pause_timer -= dtime;
+	m_nearest_unsent_reset_timer += dtime;
 	
 	if(m_nothing_to_send_pause_timer >= 0)
 	{
-		// Keep this reset
-		m_nearest_unsent_reset_timer = 0;
 		return;
 	}
 
@@ -410,17 +409,13 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 	/*infostream<<"m_nearest_unsent_reset_timer="
 			<<m_nearest_unsent_reset_timer<<std::endl;*/
 			
-	// This has to be incremented only when the nothing to send pause
-	// is not active
-	m_nearest_unsent_reset_timer += dtime;
-	
-	// Reset periodically to avoid possible bugs or other mishaps
-	if(m_nearest_unsent_reset_timer > 10.0)
+	// Reset periodically to workaround for some bugs or stuff
+	if(m_nearest_unsent_reset_timer > 20.0)
 	{
 		m_nearest_unsent_reset_timer = 0;
 		m_nearest_unsent_d = 0;
-		/*infostream<<"Resetting m_nearest_unsent_d for "
-				<<server->getPlayerName(peer_id)<<std::endl;*/
+		//infostream<<"Resetting m_nearest_unsent_d for "
+		//		<<server->getPlayerName(peer_id)<<std::endl;
 	}
 
 	//s16 last_nearest_unsent_d = m_nearest_unsent_d;
@@ -463,22 +458,24 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 	s16 d_max_gen = g_settings->getS16("max_block_generate_distance");
 	
 	// Don't loop very much at a time
-	if(d_max > d_start+1)
-		d_max = d_start+1;
+	s16 max_d_increment_at_time = 2;
+	if(d_max > d_start + max_d_increment_at_time)
+		d_max = d_start + max_d_increment_at_time;
 	/*if(d_max_gen > d_start+2)
 		d_max_gen = d_start+2;*/
 	
 	//infostream<<"Starting from "<<d_start<<std::endl;
 
-	bool sending_something = false;
-
-	bool no_blocks_found_for_sending = true;
-
+	s32 nearest_emerged_d = -1;
+	s32 nearest_emergefull_d = -1;
+	s32 nearest_sent_d = -1;
 	bool queue_is_full = false;
 	
 	s16 d;
 	for(d = d_start; d <= d_max; d++)
 	{
+		/*errorstream<<"checking d="<<d<<" for "
+				<<server->getPlayerName(peer_id)<<std::endl;*/
 		//infostream<<"RemoteClient::SendBlocks(): d="<<d<<std::endl;
 		
 		/*
@@ -550,12 +547,12 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 				if(abs(p.Y - center.Y) > d_max_gen - d_max_gen / 3)
 					generate = false;*/
 
-				// Limit the send area vertically to 2/3
-				if(abs(p.Y - center.Y) > d_max_gen - d_max_gen / 3)
+				// Limit the send area vertically to 1/2
+				if(abs(p.Y - center.Y) > d_max / 2)
 					continue;
 			}
 
-#if 1
+#if 0
 			/*
 				If block is far away, don't generate it unless it is
 				near ground level.
@@ -588,7 +585,7 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 #endif
 
 			//infostream<<"d="<<d<<std::endl;
-			
+#if 1
 			/*
 				Don't generate or send if not in sight
 				FIXME This only works if the client uses a small enough
@@ -600,7 +597,7 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 			{
 				continue;
 			}
-			
+#endif
 			/*
 				Don't send already sent blocks
 			*/
@@ -658,7 +655,7 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 					Block is near ground level if night-time mesh
 					differs from day-time mesh.
 				*/
-				if(d > 3)
+				if(d >= 4)
 				{
 					if(block->dayNightDiffed() == false)
 						continue;
@@ -677,18 +674,6 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 			}
 
 			/*
-				Record the lowest d from which a block has been
-				found being not sent and possibly to exist
-			*/
-			if(no_blocks_found_for_sending)
-			{
-				if(generate == true)
-					new_nearest_unsent_d = d;
-			}
-
-			no_blocks_found_for_sending = false;
-					
-			/*
 				Add inexistent block to emerge queue.
 			*/
 			if(block == NULL || surely_not_found_on_disk || block_is_invalid)
@@ -697,7 +682,8 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 				// Allow only one block in emerge queue
 				//if(server->m_emerge_queue.peerItemCount(peer_id) < 1)
 				// Allow two blocks in queue per client
-				if(server->m_emerge_queue.peerItemCount(peer_id) < 2)
+				//if(server->m_emerge_queue.peerItemCount(peer_id) < 2)
+				if(server->m_emerge_queue.peerItemCount(peer_id) < 25)
 				{
 					//infostream<<"Adding block to emerge queue"<<std::endl;
 					
@@ -709,54 +695,62 @@ void RemoteClient::GetNextBlocks(Server *server, float dtime,
 					
 					server->m_emerge_queue.addBlock(peer_id, p, flags);
 					server->m_emergethread.trigger();
+
+					if(nearest_emerged_d == -1)
+						nearest_emerged_d = d;
+				} else {
+					if(nearest_emergefull_d == -1)
+						nearest_emergefull_d = d;
 				}
 				
 				// get next one.
 				continue;
 			}
 
+			if(nearest_sent_d == -1)
+				nearest_sent_d = d;
+
 			/*
 				Add block to send queue
 			*/
+
+			/*errorstream<<"sending from d="<<d<<" to "
+					<<server->getPlayerName(peer_id)<<std::endl;*/
 
 			PrioritySortedBlockTransfer q((float)d, p, peer_id);
 
 			dest.push_back(q);
 
 			num_blocks_selected += 1;
-			sending_something = true;
 		}
 	}
 queue_full_break:
 
 	//infostream<<"Stopped at "<<d<<std::endl;
 	
-	if(no_blocks_found_for_sending)
-	{
-		if(queue_is_full == false)
-			new_nearest_unsent_d = d;
+	// If nothing was found for sending and nothing was queued for
+	// emerging, continue next time browsing from here
+	if(nearest_emerged_d != -1){
+		new_nearest_unsent_d = nearest_emerged_d;
+	} else if(nearest_emergefull_d != -1){
+		new_nearest_unsent_d = nearest_emergefull_d;
+	} else {
+		if(d > g_settings->getS16("max_block_send_distance")){
+			new_nearest_unsent_d = 0;
+			m_nothing_to_send_pause_timer = 2.0;
+			/*infostream<<"GetNextBlocks(): d wrapped around for "
+					<<server->getPlayerName(peer_id)
+					<<"; setting to 0 and pausing"<<std::endl;*/
+		} else {
+			if(nearest_sent_d != -1)
+				new_nearest_unsent_d = nearest_sent_d;
+			else
+				new_nearest_unsent_d = d;
+		}
 	}
 
 	if(new_nearest_unsent_d != -1)
 		m_nearest_unsent_d = new_nearest_unsent_d;
-
-	if(sending_something == false)
-	{
-		m_nothing_to_send_counter++;
-		if((s16)m_nothing_to_send_counter >=
-				g_settings->getS16("max_block_send_distance"))
-		{
-			// Pause time in seconds
-			m_nothing_to_send_pause_timer = 1.0;
-			/*infostream<<"nothing to send to "
-					<<server->getPlayerName(peer_id)
-					<<" (d="<<d<<")"<<std::endl;*/
-		}
-	}
-	else
-	{
-		m_nothing_to_send_counter = 0;
-	}
 
 	/*timer_result = timer.stop(true);
 	if(timer_result != 0)
@@ -1080,7 +1074,7 @@ void Server::start(unsigned short port)
 	m_thread.stop();
 	
 	// Initialize connection
-	m_con.setTimeoutMs(30);
+	m_con.SetTimeoutMs(30);
 	m_con.Serve(port);
 
 	// Start thread
@@ -1214,7 +1208,7 @@ void Server::AsyncRunStep()
 		JMutexAutoLock lock(m_env_mutex);
 		// Step environment
 		ScopeProfiler sp(g_profiler, "SEnv step");
-		ScopeProfiler sp2(g_profiler, "SEnv step avg", SPT_LOWPASS);
+		ScopeProfiler sp2(g_profiler, "SEnv step avg", SPT_AVG);
 		m_env.step(dtime);
 	}
 		
@@ -1470,7 +1464,7 @@ void Server::AsyncRunStep()
 		JMutexAutoLock envlock(m_env_mutex);
 		JMutexAutoLock conlock(m_con_mutex);
 
-		ScopeProfiler sp(g_profiler, "Server: sending object messages");
+		//ScopeProfiler sp(g_profiler, "Server: sending object messages");
 
 		// Key = object id
 		// Value = data sent by object
@@ -1710,7 +1704,7 @@ void Server::AsyncRunStep()
 			JMutexAutoLock lock1(m_env_mutex);
 			JMutexAutoLock lock2(m_con_mutex);
 
-			ScopeProfiler sp(g_profiler, "Server: sending player positions");
+			//ScopeProfiler sp(g_profiler, "Server: sending player positions");
 
 			SendObjectData(counter);
 
@@ -1829,9 +1823,18 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 	JMutexAutoLock envlock(m_env_mutex);
 	JMutexAutoLock conlock(m_con_mutex);
 	
-	con::Peer *peer;
 	try{
-		peer = m_con.GetPeer(peer_id);
+		Address address = m_con.GetPeerAddress(peer_id);
+
+		// drop player if is ip is banned
+		if(m_banmanager.isIpBanned(address.serializeString())){
+			SendAccessDenied(m_con, peer_id,
+					L"Your ip is banned. Banned name was "
+					+narrow_to_wide(m_banmanager.getBanName(
+						address.serializeString())));
+			m_con.DeletePeer(peer_id);
+			return;
+		}
 	}
 	catch(con::PeerNotFoundException &e)
 	{
@@ -1840,17 +1843,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		return;
 	}
 
-	// drop player if is ip is banned
-	if(m_banmanager.isIpBanned(peer->address.serializeString())){
-		SendAccessDenied(m_con, peer_id,
-				L"Your ip is banned. Banned name was "
-				+narrow_to_wide(m_banmanager.getBanName(
-					peer->address.serializeString())));
-		m_con.deletePeer(peer_id, false);
-		return;
-	}
-	
-	u8 peer_ser_ver = getClient(peer->id)->serialization_version;
+	u8 peer_ser_ver = getClient(peer_id)->serialization_version;
 
 	try
 	{
@@ -1871,7 +1864,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			return;
 
 		infostream<<"Server: Got TOSERVER_INIT from "
-				<<peer->id<<std::endl;
+				<<peer_id<<std::endl;
 
 		// First byte after command is maximum supported
 		// serialization version
@@ -1884,7 +1877,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			deployed = SER_FMT_VER_INVALID;
 
 		//peer->serialization_version = deployed;
-		getClient(peer->id)->pending_serialization_version = deployed;
+		getClient(peer_id)->pending_serialization_version = deployed;
 		
 		if(deployed == SER_FMT_VER_INVALID)
 		{
@@ -1906,7 +1899,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			net_proto_version = readU16(&data[2+1+PLAYERNAME_SIZE+PASSWORD_SIZE]);
 		}
 
-		getClient(peer->id)->net_proto_version = net_proto_version;
+		getClient(peer_id)->net_proto_version = net_proto_version;
 
 		if(net_proto_version == 0)
 		{
@@ -2051,11 +2044,11 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 	if(command == TOSERVER_INIT2)
 	{
 		infostream<<"Server: Got TOSERVER_INIT2 from "
-				<<peer->id<<std::endl;
+				<<peer_id<<std::endl;
 
 
-		getClient(peer->id)->serialization_version
-				= getClient(peer->id)->pending_serialization_version;
+		getClient(peer_id)->serialization_version
+				= getClient(peer_id)->pending_serialization_version;
 
 		/*
 			Send some initialization data
@@ -2065,8 +2058,8 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		SendPlayerInfos();
 
 		// Send inventory to player
-		UpdateCrafting(peer->id);
-		SendInventory(peer->id);
+		UpdateCrafting(peer_id);
+		SendInventory(peer_id);
 
 		// Send player items to all players
 		SendPlayerItems();
@@ -2082,7 +2075,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		{
 			SharedBuffer<u8> data = makePacket_TOCLIENT_TIME_OF_DAY(
 					m_env.getTimeOfDay());
-			m_con.Send(peer->id, 0, data, true);
+			m_con.Send(peer_id, 0, data, true);
 		}
 		
 		// Send information about server to player in chat
@@ -2103,7 +2096,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		}
 		
 		// Warnings about protocol version can be issued here
-		if(getClient(peer->id)->net_proto_version < PROTOCOL_VERSION)
+		if(getClient(peer_id)->net_proto_version < PROTOCOL_VERSION)
 		{
 			SendChatMessage(peer_id, L"# Server: WARNING: YOUR CLIENT IS OLD AND MAY WORK PROPERLY WITH THIS SERVER");
 		}
@@ -2445,7 +2438,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		else if(action == 2)
 		{
 #if 0
-			RemoteClient *client = getClient(peer->id);
+			RemoteClient *client = getClient(peer_id);
 			JMutexAutoLock digmutex(client->m_dig_mutex);
 			client->m_dig_tool_item = -1;
 #endif
@@ -2728,7 +2721,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 				}
 
 				// Reset build time counter
-				getClient(peer->id)->m_time_from_building = 0.0;
+				getClient(peer_id)->m_time_from_building = 0.0;
 				
 				// Create node data
 				MaterialItem *mitem = (MaterialItem*)item;
@@ -3539,11 +3532,10 @@ core::list<PlayerInfo> Server::getPlayerInfo()
 		Player *player = *i;
 
 		try{
-			con::Peer *peer = m_con.GetPeer(player->peer_id);
-			// Copy info from peer to info struct
-			info.id = peer->id;
-			info.address = peer->address;
-			info.avg_rtt = peer->avg_rtt;
+			// Copy info from connection to info struct
+			info.id = player->peer_id;
+			info.address = m_con.GetPeerAddress(player->peer_id);
+			info.avg_rtt = m_con.GetPeerAvgRTT(player->peer_id);
 		}
 		catch(con::PeerNotFoundException &e)
 		{
@@ -4424,6 +4416,11 @@ void Server::notifyPlayer(const char *name, const std::wstring msg)
 	if(!player)
 		return;
 	SendChatMessage(player->peer_id, std::wstring(L"Server: -!- ")+msg);
+}
+
+void Server::notifyPlayers(const std::wstring msg)
+{
+	BroadcastChatMessage(msg);
 }
 
 v3f findSpawnPos(ServerMap &map)

@@ -175,6 +175,11 @@ enum ToClientCommand
 		}
 	*/
 
+
+//official minetest version has new commands
+//but we want our server's to be back-compatible with jachoo's version
+//we should delete this #ifdef on release
+#ifdef CELERON55_COMPATIBLE
 	TOCLIENT_DEATHSCREEN = 0x37,
 	/*
 		u16 command
@@ -209,6 +214,12 @@ enum ToClientCommand
 		u16		command
 		u16		clan id
 	*/
+#else //def CELERON55_COMPATIBLE
+	TOCLIENT_DEATHSCREEN = 0x3A,
+	TOCLIENT_PLAYER_CLAN = 0x37,
+	TOCLIENT_CLAN_NAMES = 0x38,
+	TOCLIENT_CLAN_DELETED = 0x39,
+#endif
 
 };
 

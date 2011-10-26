@@ -124,6 +124,10 @@ struct ContentFeatures
 	AtlasPointer *special_atlas;
 #endif
 
+	// List of all block textures that have been used (value is dummy)
+	// Exists on server too for cleaner code in content_mapnode.cpp
+	core::map<std::string, bool> used_texturenames;
+	
 	// Type of MapNode::param1
 	ContentParamType param_type;
 	// True for all ground-like things like stone and mud, false for eg. trees
@@ -151,6 +155,10 @@ struct ContentFeatures
 	// If true, node is equivalent to air. Torches are, air is. Water is not.
 	// Is used for example to check whether a mud block can have grass on.
 	bool air_equivalent;
+	// Whether this content type often contains mineral.
+	// Used for texture atlas creation.
+	// Currently only enabled for CONTENT_STONE.
+	bool often_contains_mineral;
 	
 	// Inventory item string as which the node appears in inventory when dug.
 	// Mineral overrides this.
@@ -207,6 +215,7 @@ struct ContentFeatures
 		liquid_type = LIQUID_NONE;
 		wall_mounted = false;
 		air_equivalent = false;
+		often_contains_mineral = false;
 		dug_item = "";
 		initial_metadata = NULL;
 		liquid_alternative_flowing = CONTENT_IGNORE;
