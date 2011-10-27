@@ -1759,8 +1759,12 @@ void the_game(
 			u16 block_owner = block ? block->getOwner() : 0;
 			u16 block2_owner = block2 ? block2->getOwner() : 0;
 
-			if(block_owner || block2_owner )
-				ownershiptext = L"Property of clan ";
+			if(block_owner || block2_owner ){
+				if(block_owner == block2_owner)
+					ownershiptext = L"Property of clan ";
+				else
+					ownershiptext = L"Border of clan ";
+			}
 
 			if(block_owner)
 				ownershiptext += narrow_to_wide(clansManager->clanNameNoEx(block_owner));
@@ -1929,7 +1933,7 @@ void the_game(
 				}
 			}
 			
-			if(canModify && input->getRightClicked())
+			if(canModifyNeighbour && input->getRightClicked())
 			{
 				infostream<<"Ground right-clicked"<<std::endl;
 				
