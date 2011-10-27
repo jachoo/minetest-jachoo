@@ -432,6 +432,7 @@ public:
 	void BroadcastPlayerClan(u16 clan, const std::string& name); //j
 	void SendClanDeleted(u16 peer_id,u16 clan); //j
 	void BroadcastClanDeleted(u16 clan); //j
+	void KillPlayer(Player *player); //p
 	
 	u64 getPlayerAuthPrivs(const std::string &name)
 	{

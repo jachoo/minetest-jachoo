@@ -339,6 +339,12 @@ void cmd_clanNew(std::wostringstream &os,
 	else os<< L"-!- Error - clan '"<<ctx->parms[1]<<"' NOT added.";
 }
 
+void cmd_die(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	ctx->server->KillPlayer(ctx->player);
+}
+
 //j
 void cmd_clanDelete(std::wostringstream &os,
 	ServerCommandContext *ctx)
@@ -502,6 +508,8 @@ std::wstring processServerCommand(ServerCommandContext *ctx)
 		cmd_me(os, ctx);
 	else if(ctx->parms[0] == L"clearobjects")
 		cmd_clearobjects(os, ctx);
+	else if(ctx->parms[0] == L"die")
+		cmd_die(os, ctx);
 	else if(ctx->parms[0] == L"clan-new")
 	{
 		cmd_clanNew(os, ctx);

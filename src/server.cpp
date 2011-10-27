@@ -4272,6 +4272,10 @@ void Server::SendBlocks(float dtime)
 /*
 	Something random
 */
+void Server::KillPlayer(Player *player)
+{	// to consider: in creative or if hp is disabled: just respawn, so inventory is not lost
+	HandlePlayerHP(player,32767);
+}
 
 void Server::HandlePlayerHP(Player *player, s16 damage)
 {
