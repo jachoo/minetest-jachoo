@@ -171,6 +171,8 @@ public:
 	std::set<int> clans;
 	u16 clanOwner;
 	bool canModify(const ClansManager* clansManager, Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const;
+	v3f lastTeleportPos;	//server: remember position player teleported to, to let him move away.
+
 
 protected:
 	char m_name[PLAYERNAME_SIZE];

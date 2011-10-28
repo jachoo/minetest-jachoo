@@ -40,13 +40,14 @@ Player::Player():
 	craftresult_is_preview(true),
 	hp(20),
 	peer_id(PEER_ID_INEXISTENT),
+	clanOwner(0),
 	m_selected_item(0),
 	m_pitch(0),
 	m_yaw(0),
 	m_speed(0,0,0),
-	m_position(0,0,0),
-	clanOwner(0)
+	m_position(0,0,0)
 {
+	lastTeleportPos.X=FLT_MAX;
 	updateName("<not set>");
 	resetInventory();
 }
