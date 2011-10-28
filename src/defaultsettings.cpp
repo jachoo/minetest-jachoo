@@ -110,5 +110,6 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("full_block_send_enable_min_time_from_building", "2.0");
 	settings->setDefault("enable_experimental", "false");
 	settings->setDefault("crafted_teleports", "4");
+	settings->setDefault("build_on_borders", "false");
 }
 

@@ -158,4 +158,5 @@
 # 2 - teleport A works iff it points to clear area containing teleport B, and teleport B points back to teleport A
 # 3 or more - just like 2 but there can be 3 of more teleports in loop (warning - high value is bad for server performance)
 #crafted_teleports = 4
-
+#are players allowed to build connecting to border/edge of hostile clan territory
+#build_on_borders = false

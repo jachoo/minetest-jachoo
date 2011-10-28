@@ -2470,8 +2470,11 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		u16 item_i = readU16(&data[15]);
 
 		//j,placki
-		if( ( action == 1 && !player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_over) )
-			||( action != 1 && !player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_under) ) )
+		bool canModifyOver=player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_over);
+		bool canModifyUnder=player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_under);
+		bool canBoB=g_settings->getBool("build_on_borders");
+		if((!canBoB && (!canModifyOver || !canModifyUnder))
+			||(canBoB && ((action == 1 && !canModifyOver) || (action != 1 && !canModifyUnder))) )
 		{
 			derr_server<<"Player isn't owner of a block"<<std::endl;
 			RemoteClient *client = getClient(peer_id);
