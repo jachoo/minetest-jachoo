@@ -35,6 +35,18 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 class Player;
 class Settings;
 
+struct Clan {
+	u16 id;
+	std::string name;
+	v3f spawnPoint;
+	bool hasSpawnPoint;
+
+	Clan():id(0),name("?"),spawnPoint(0,0,0),hasSpawnPoint(false){}
+
+	inline void deleteSpawnPoint(){hasSpawnPoint=false;}
+	inline void setSpawnPoint(const v3f& pos){spawnPoint=pos;hasSpawnPoint=true;}
+};
+
 class ClansManager {
 public:
 
@@ -51,17 +63,23 @@ public:
 	u16 clanId(const std::string& name) const;
 	const std::string& clanName(u16 id) const; //throws if not existing clan
 	const std::string& clanNameNoEx(u16 id) const;
+
+	Clan* getClan(u16 id);
+	const Clan* getClan(u16 id) const;
 	
-	const std::map<u16,std::string>& getNames() const;
-	void setClan(u16 id, const std::string& name);
+	const std::map<u16,Clan>& getClans() const;
+	const std::set<u16>& getDeleted() const;
+
+	void setClan(u16 id, const std::string& name, bool hasSpawnPoint, v3f spawnPoint = v3f());
+	void addDeleted(u16 id);
 
 	void save(Settings& args) const;
 	void load(Settings& args);
 
 protected:
 
-	std::map<u16,std::string> m_idName;
-	std::map<std::string,u16> m_nameId;
+	std::map<u16,Clan> m_ids;
+	std::map<std::string,Clan*> m_names;
 	std::set<u16> m_deleted;
 	u16 m_maxId;
 

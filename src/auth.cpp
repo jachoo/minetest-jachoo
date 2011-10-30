@@ -44,6 +44,8 @@ std::string privsToString(u64 privs)
 		os<<"ban,";
 	if(privs & PRIV_CLANS)
 		os<<"clans,";
+	if(privs & PRIV_CLANS_ADMIN)
+		os<<"clans_admin,";
 	if(os.tellp())
 	{
 		// Drop the trailing comma. (Why on earth can't
@@ -78,6 +80,8 @@ u64 stringToPrivs(std::string str)
 			privs |= PRIV_BAN;
 		else if(s == "clans")
 			privs |= PRIV_CLANS;
+		else if(s == "clans_admin")
+			privs |= PRIV_CLANS_ADMIN;
 		else
 			return PRIV_INVALID;
 	}

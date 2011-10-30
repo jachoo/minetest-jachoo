@@ -1759,6 +1759,9 @@ void the_game(
 			u16 block_owner = block ? block->getOwner() : 0;
 			u16 block2_owner = block2 ? block2->getOwner() : 0;
 
+			bool canModifyNeighbour = player->canModify(&client.getEnv()->clansManager,NULL,block2,NULL,NULL);
+			bool canModify = canModifyNeighbour && player->canModify(&client.getEnv()->clansManager,NULL,block,NULL,NULL);
+
 			if(block_owner || block2_owner )
 				ownershiptext = L"Property of clan ";
 
@@ -1769,9 +1772,6 @@ void the_game(
 				if(block_owner) ownershiptext += L" and ";
 				ownershiptext += narrow_to_wide(clansManager->clanNameNoEx(block2_owner));
 			}
-
-			bool canModifyNeighbour = player->canModify(&client.getEnv()->clansManager,NULL,block2,NULL,NULL);
-			bool canModify = canModifyNeighbour && player->canModify(&client.getEnv()->clansManager,NULL,block,NULL,NULL);
 
 			if(!canModify) ownershiptext += narrow_to_wide(std::string(" [X] "));
 

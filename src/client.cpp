@@ -1544,10 +1544,50 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 			std::string name;
 			for(u8 j=0; j<len; j++)
 				name += (char)readU8(is);
-			m_env.clansManager.setClan(id,name);
+			m_env.clansManager.setClan(id,name,false);
 		}
 		
 		dstream<<"Client got TOCLIENT_CLAN_NAMES - count="
+				<< count
+				<<std::endl;
+	}
+	else if(command == TOCLIENT_CLANS) //j
+	{
+		std::string datastring((char*)&data[2], datasize-2);
+		std::istringstream is(datastring, std::ios_base::binary);
+		
+		/*
+			u16		command
+			u16		count
+
+			u16		clan id
+			u8		clan name lenght (NOTE: if = 0 -> clan is deleted!!!)
+			string	clan name
+			#v3f1000	clan spawn point (NOTE: if > X 32000 -> spawn point not set!)
+
+			...
+		*/
+		
+		const u16 count = readU16(is);
+		for(u16 i=0; i<count; i++){
+			u16 id = readU16(is);
+			u8 len = readU8(is);
+			if(len>0){
+				std::string name;
+				for(u8 j=0; j<len; j++)
+					name += (char)readU8(is);
+				m_env.clansManager.setClan(id,name,false);
+			}else{
+				//clan deleted
+				m_env.clansManager.deleteClan(id);
+				m_env.clansManager.addDeleted(id);
+			}
+			/*v3f spawn = readV3F1000(is);
+			if(spawn.X > 32000) m_env.clansManager.getClan(id)->deleteSpawnPoint();
+			else m_env.clansManager.getClan(id)->setSpawnPoint(spawn);*/
+		}
+		
+		dstream<<"Client got TOCLIENT_CLANS - count="
 				<< count
 				<<std::endl;
 	}
@@ -1574,6 +1614,27 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 		
 		dstream<<"Client got TOCLIENT_CLAN_DELETED - clan="
 				<< clan
+				<<std::endl;
+	}
+	else if(command == TOCLIENT_CLAN_SPAWNPOINT) //j
+	{
+		std::string datastring((char*)&data[2], datasize-2);
+		std::istringstream is(datastring, std::ios_base::binary);
+		
+		/*
+			u16		command
+			u16		clan id
+			v3f1000	clan spawn point X,Y,Z (NOTE: if X > 32000 -> spawn point not set!)
+		*/
+		
+		const u16 clan = readU16(is);
+		if(clan>0 && m_env.clansManager.clanExists(clan)){
+			v3f spawn = readV3F1000(is);
+			if(spawn.X > 32000) m_env.clansManager.getClan(clan)->deleteSpawnPoint();
+			else m_env.clansManager.getClan(clan)->setSpawnPoint(spawn);
+		}
+		
+		dstream<<"Client got TOCLIENT_SPAWNPOINT"
 				<<std::endl;
 	}
 	else

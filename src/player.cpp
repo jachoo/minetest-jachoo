@@ -26,6 +26,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <ITextSceneNode.h>
 #endif
 #include "settings.h"
+#include "content_mapnode.h"
+#include "content_nodemeta.h"
 
 #include <sstream>
 
@@ -118,12 +120,20 @@ void Player::serialize(std::ostream &os)
 	args.setV3F("position", m_position);
 	args.setBool("craftresult_is_preview", craftresult_is_preview);
 	args.setS32("hp", hp);
-	//j
+	
+	//j CLANS
+
+	args.setS32("clanOwner",clanOwner);
+
 	std::ostringstream clansStrStream;
-	for(std::set<int>::const_iterator it=clans.begin(); it!=clans.end(); it++)
+	for(std::set<u16>::const_iterator it=clans.begin(); it!=clans.end(); it++)
 		clansStrStream << *it << ' ';
 	args.set("clans",clansStrStream.str());
-	args.setS32("clanOwner",clanOwner);
+
+	std::ostringstream clansModeratorStrStream;
+	for(std::set<u16>::const_iterator it=clansModerator.begin(); it!=clansModerator.end(); it++)
+		clansModeratorStrStream << *it << ' ';
+	args.set("clansModerator",clansModeratorStrStream.str());
 
 	args.writeLines(os);
 
@@ -190,6 +200,8 @@ void Player::deSerialize(std::istream &is)
 	}*/
 	//j
 	try{
+		clanOwner = args.getU16("clanOwner");
+
 		std::string clansStr = args.get("clans");
 		std::istringstream clansStrStream(clansStr);
 		while(clansStrStream.good() && !clansStrStream.eof()){
@@ -199,7 +211,18 @@ void Player::deSerialize(std::istream &is)
 			int i = atoi(s.c_str());
 			if(i>=0 && i<=0xFFFF) clans.insert(i);
 		}
-		clanOwner = args.getU16("clanOwner");
+
+		if(args.exists("clansModerator")){
+			std::string clansModeratorStr = args.get("clansModerator");
+			std::istringstream clansModeratorStrStream(clansModeratorStr);
+			while(clansModeratorStrStream.good() && !clansModeratorStrStream.eof()){
+				std::string s;
+				clansModeratorStrStream >> s;
+				if(s.length() == 0) continue;
+				int i = atoi(s.c_str());
+				if(i>=0 && i<=0xFFFF) clansModerator.insert(i);
+			}
+		}
 	}catch(SettingNotFoundException& e){}
 
 	inventory.deSerialize(is);
@@ -208,7 +231,7 @@ void Player::deSerialize(std::istream &is)
 //j
 inline bool canModifyNoCheck(const Player* player, const MapBlock* block) {
 	u16 owner = block->getOwner();
-	return owner == 0 || player->clans.find(owner) != player->clans.end();
+	return owner == 0 || player->isClanMember(owner);
 }
 
 inline bool canModifyCheck(const Player* player, const MapBlock* block) {
@@ -231,6 +254,49 @@ bool Player::canModify(const ClansManager* clansManager, Map* map, MapBlock* blo
 	}
 	//if(node) return node->
 	return false;
+}
+
+std::pair<bool,v3f> Player::findSpawnPos(const ClansManager& clansManager)
+{
+	if(clans.size() == 0) return std::make_pair(false,v3f());
+	/*std::vector<v3f> positions;
+	for(std::set<u16>::const_iterator it=clans.begin(); it!=clans.end(); it++){
+		const Clan* clan = clansManager.getClan(*it);
+		if(clan && clan->hasSpawnPoint) positions.push_back(clan->spawnPoint);
+	}
+	if(positions.size()==0)return std::make_pair(false,v3f());
+	int i = rand() % positions.size();
+	return std::make_pair(true,positions[i]);*/
+	v3f p;
+	f32 p_dist = 99999999;
+	v3f playerPos = getPosition();
+	for(std::set<u16>::const_iterator it=clans.begin(); it!=clans.end(); it++){
+		const Clan* clan = clansManager.getClan(*it);
+		if(clan && clan->hasSpawnPoint){
+			f32 d = playerPos.getDistanceFrom(clan->spawnPoint);
+			if(d < p_dist){
+				p_dist = d;
+				p = clan->spawnPoint;
+			}
+		}
+	}
+	if(p_dist==99999999)return std::make_pair(false,v3f());
+	return std::make_pair(true,p);
+}
+
+void Player::actualizeClans(const ClansManager& clansManager)
+{
+	if(!clansManager.clanExists(clanOwner))clanOwner = 0;
+	std::set<u16> del;
+	for(std::set<u16>::const_iterator it=clans.begin(); it!=clans.end(); it++)
+		if(!clansManager.clanExists(*it))del.insert(*it);
+	for(std::set<u16>::const_iterator it=del.begin(); it!=del.end(); it++)
+		clans.erase(*it);
+	del.clear();
+	for(std::set<u16>::const_iterator it=clansModerator.begin(); it!=clansModerator.end(); it++)
+		if(!clansManager.clanExists(*it))del.insert(*it);
+	for(std::set<u16>::const_iterator it=del.begin(); it!=del.end(); it++)
+		clansModerator.erase(*it);
 }
 
 /*
@@ -564,7 +630,7 @@ void LocalPlayer::move(f32 dtime, Map &map, f32 pos_max_d,
 			is_unloaded = true;
 			// Doing nothing here will block the player from
 			// walking over map borders
-			}
+		}
 
 		core::aabbox3d<f32> nodebox = getNodeBox(v3s16(x,y,z), BS);
 		
@@ -775,6 +841,32 @@ void LocalPlayer::move(f32 dtime, Map &map, f32 pos_max_d,
 			info.t = COLLISION_FALL;
 			info.speed = m_speed.Y - old_speed.Y;
 			collision_info->push_back(info);
+		}
+	}
+
+	/*
+		Check if standing on a teleport
+		TODO: should it be at the beginning or at the end of this func?
+	*/
+	v3s16 standPos = floatToInt(position - v3f(0,BS/2,0), BS);
+	MapNode standNode = map.getNodeNoEx(standPos);
+	if(standNode.getContent() == CONTENT_TELEPORT){
+		SignNodeMetadata* meta = (SignNodeMetadata*)map.getNodeMetadata(standPos);
+		if(meta){
+			v3f t;
+			std::string text = meta->getText();
+			str_replace_char(text,',',' ');
+			std::istringstream is(text);
+			is >> t.X >> t.Y >> t.Z;
+
+			//TODO: map limits!
+			if(	t.X > 32000 || t.X < -32000 ||
+				t.Y > 32000 || t.Y < -32000 ||
+				t.Z > 32000 || t.Z < -32000 ||
+				(t.X == 0 && t.Y == 0 && t.Z == 0)
+			) return;
+
+			setPosition(t*BS);
 		}
 	}
 }

@@ -214,11 +214,33 @@ enum ToClientCommand
 		u16		command
 		u16		clan id
 	*/
+
+	TOCLIENT_CLANS = 0x3B,
+	/*
+		u16		command
+		u16		count
+
+		u16		clan id
+		u8		clan name lenght (NOTE: if = 0 -> clan is deleted!!!)
+		string	clan name
+		#v3f1000	clan spawn point X,Y,Z (NOTE: if X > 32000 -> spawn point not set!)
+
+		...
+	*/
+
+	TOCLIENT_CLAN_SPAWNPOINT = 0x3C,
+	/*
+		u16		command
+		u16		clan id
+		v3f1000	clan spawn point X,Y,Z (NOTE: if X > 32000 -> spawn point not set!)
+	*/
 #else //def CELERON55_COMPATIBLE
 	TOCLIENT_DEATHSCREEN = 0x3A,
 	TOCLIENT_PLAYER_CLAN = 0x37,
 	TOCLIENT_CLAN_NAMES = 0x38,
 	TOCLIENT_CLAN_DELETED = 0x39,
+	TOCLIENT_CLANS = 0x3B,
+	TOCLIENT_CLAN_SPAWNPOINT = 0x3C,
 #endif
 
 };

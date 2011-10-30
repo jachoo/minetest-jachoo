@@ -39,7 +39,8 @@ const u64 PRIV_SERVER = 16;          // Can manage the server (e.g. shutodwn
 const u64 PRIV_SHOUT = 32;           // Can broadcast chat messages to all
                                      // players
 const u64 PRIV_BAN = 64;             // Can ban players
-const u64 PRIV_CLANS = 128;             // Can create clans
+const u64 PRIV_CLANS = 128;          // Can create clans
+const u64 PRIV_CLANS_ADMIN = 256;    // Can delete clans
 
 // Default privileges - these can be overriden for new players using the
 // config option "default_privs" - however, this value still applies for

@@ -36,8 +36,7 @@ u16 ClansManager::newClan(const std::string& name, Player* player)
 	if(clanExists(name)) return 0;
 	if(m_maxId == 0xFFFF) return 0; //j: szukanie jakiegos wolnego?
 	u16 id = ++m_maxId;
-	m_idName[id] = name;
-	m_nameId[name] = id;
+	setClan(id,name,false);
 	if(player){
 		player->clanOwner = id;
 		player->clans.insert(id);
@@ -49,18 +48,18 @@ void ClansManager::deleteClan(u16 id)
 {
 	if(!clanExists(id))return;
 	m_deleted.insert(id);
-	m_nameId.erase( clanNameNoEx(id) );
-	m_idName.erase(id);
+	m_names.erase( clanNameNoEx(id) );
+	m_ids.erase(id);
 }
 	
 bool ClansManager::clanExists(u16 id) const
 {
-	return m_idName.find(id) != m_idName.end();
+	return m_ids.find(id) != m_ids.end();
 }
 
 bool ClansManager::clanExists(const std::string& name) const
 {
-	return m_nameId.find(name) != m_nameId.end();
+	return m_names.find(name) != m_names.end();
 }
 
 bool ClansManager::clanDeleted(u16 id) const
@@ -70,16 +69,16 @@ bool ClansManager::clanDeleted(u16 id) const
 
 u16 ClansManager::clanId(const std::string& name) const
 {
-	std::map<std::string,u16>::const_iterator it = m_nameId.find(name);
-	if(it==m_nameId.end()) return 0;
-	return it->second;
+	std::map<std::string,Clan*>::const_iterator it = m_names.find(name);
+	if(it==m_names.end()) return 0;
+	return it->second->id;
 }
 
 const std::string& ClansManager::clanName(u16 id) const
 {
-	std::map<u16,std::string>::const_iterator it = m_idName.find(id);
-	if(it==m_idName.end()) throw BaseException("Clan doesn't exist");
-	return it->second;
+	std::map<u16,Clan>::const_iterator it = m_ids.find(id);
+	if(it==m_ids.end()) throw BaseException("Clan doesn't exist");
+	return it->second.name;
 }
 
 const std::string& ClansManager::clanNameNoEx(u16 id) const
@@ -92,33 +91,41 @@ const std::string& ClansManager::clanNameNoEx(u16 id) const
 	}
 }
 
-const std::map<u16,std::string>& ClansManager::getNames() const
+const std::map<u16,Clan>& ClansManager::getClans() const
 {
-	return m_idName;
+	return m_ids;
 }
 
-void ClansManager::setClan(u16 id, const std::string& name)
+const std::set<u16>& ClansManager::getDeleted() const
 {
-	m_idName[id] = name;
-	m_nameId[name] = id;
+	return m_deleted;
 }
-
 
 void ClansManager::save(Settings& args) const
 {
 	args.setS32("clans-maxId",m_maxId);
 	
 	std::ostringstream os;
-	for(std::map<u16,std::string>::const_iterator it=m_idName.begin(); it!=m_idName.end(); it++){
-		os << it->first << ' ' << it->second << ' ';
+	for(std::map<u16,Clan>::const_iterator it=m_ids.begin(); it!=m_ids.end(); it++){
+		os << it->first << ' ' << it->second.name << ' ';
 	}
 	args.set("clans-names",os.str());
 
 	std::ostringstream os2;
-	for(std::set<u16>::const_iterator it=m_deleted.begin(); it!=m_deleted.end(); it++){
-		os2 << *it << ' ';
+	for(std::map<u16,Clan>::const_iterator it=m_ids.begin(); it!=m_ids.end(); it++){
+		if(!it->second.hasSpawnPoint) continue;
+		os2 << it->first << ' ' 
+			<< it->second.spawnPoint.X << ' ' 
+			<< it->second.spawnPoint.Y << ' ' 
+			<< it->second.spawnPoint.Z << ' ';
 	}
-	args.set("clans-deleted",os2.str());
+	args.set("clans-spawn",os2.str());
+
+	std::ostringstream os3;
+	for(std::set<u16>::const_iterator it=m_deleted.begin(); it!=m_deleted.end(); it++){
+		os3 << *it << ' ';
+	}
+	args.set("clans-deleted",os3.str());
 }
 
 void ClansManager::load(Settings& args)
@@ -133,8 +140,22 @@ void ClansManager::load(Settings& args)
 			std::string name;
 			is >> id >> name;
 			if(id == 0 || name.length() == 0) continue;
-			m_idName[id] = name;
-			m_nameId[name] = id;
+			setClan(id,name,false);
+		}
+
+		if(args.exists("clans-spawn")){
+			s = args.get("clans-spawn");
+			std::istringstream is3(s);
+			while(is3.good() && !is3.eof()){
+				u16 id;
+				v3f spawn;
+				is3 >> id >> spawn.X >> spawn.Y >> spawn.Z;
+				if(id == 0) continue;
+				Clan* clan = getClan(id);
+				if(!clan) continue;
+				clan->hasSpawnPoint = true;
+				clan->spawnPoint = spawn;
+			}
 		}
 
 		s = args.get("clans-deleted");
@@ -143,15 +164,45 @@ void ClansManager::load(Settings& args)
 			u16 id;
 			is2 >> id;
 			if(id == 0 ) continue;
+			deleteClan(id);
 			m_deleted.insert(id);
 		}
 
 	}catch(...){
 		//TODO: what to do?
 		m_maxId = 0;
-		m_idName.clear();
-		m_nameId.clear();
+		m_names.clear();
+		m_ids.clear();
 		m_deleted.clear();
 	}
+}
+
+Clan* ClansManager::getClan(u16 id)
+{
+	std::map<u16,Clan>::iterator it = m_ids.find(id);
+	if(it==m_ids.end()) return NULL;
+	return &it->second;
+}
+
+const Clan* ClansManager::getClan(u16 id) const
+{
+	std::map<u16,Clan>::const_iterator it = m_ids.find(id);
+	if(it==m_ids.end()) return NULL;
+	return &it->second;
+}
+
+void ClansManager::setClan(u16 id, const std::string& name, bool hasSpawnPoint, v3f spawnPoint)
+{
+	Clan& clan = m_ids[id];
+	clan.name = name;
+	clan.id = id;
+	clan.hasSpawnPoint = hasSpawnPoint;
+	clan.spawnPoint = spawnPoint;
+	m_names[name] = &clan;
+}
+
+void ClansManager::addDeleted(u16 id)
+{
+	m_deleted.insert(id);
 }
 

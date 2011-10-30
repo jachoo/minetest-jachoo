@@ -310,106 +310,98 @@ void cmd_clearobjects(std::wostringstream &os,
 void cmd_clanNew(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
-	if((ctx->privs & PRIV_CLANS) == 0)
-	{
-		os<<L"-!- You don't have permission to do that";
-		return;
+	try{
+		if((ctx->privs & PRIV_CLANS) == 0)
+			throw BaseException("You don't have permission to do that");
+
+		if(ctx->parms.size() != 2)
+			throw BaseException("Missing parameter(s) - should be /clan-new clan");
+
+		if(ctx->player->clanOwner)
+			throw BaseException("You can define only one clan!");
+		//TODO: show actual player's owned clan (so he can delete it and create new)
+
+		std::string clanName = wide_to_narrow(ctx->parms[1]);
+
+		u16 clanId = ctx->env->clansManager.newClan(clanName,ctx->player);
+
+		if(clanId>0){
+			ctx->server->BroadcastClanName(clanId,clanName);
+			ctx->server->SendPlayerClan(ctx->player,false,clanId);
+			os<< L"-!- Clan '"<<ctx->parms[1]<<"' added.";
+		}
+		else throw BaseException("Clan already exists or other error");
+
+	}catch(BaseException& ex){
+		std::wstring msg = narrow_to_wide(std::string(ex.what()));
+		os << L"-!- Error - clan NOT added (" << msg << L")";
 	}
-
-	if(ctx->parms.size() != 2)
-	{
-		os<<L"-!- Bad parameter(s)";
-		return;
-	}
-
-	if(ctx->player->clanOwner){
-		os<< L"-!- Error - you can define only one clan!";
-		return;
-	}
-
-	std::string clanName = wide_to_narrow(ctx->parms[1]);
-
-	u16 clanId = ctx->env->clansManager.newClan(clanName,ctx->player);
-
-	if(clanId>0){
-		ctx->server->BroadcastPlayerClan(clanId,clanName);
-		ctx->server->SendPlayerClan(ctx->player,false,clanId);
-		os<< L"-!- Clan '"<<ctx->parms[1]<<"' added.";
-	}
-	else os<< L"-!- Error - clan '"<<ctx->parms[1]<<"' NOT added.";
 }
 
 //j
 void cmd_clanDelete(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
-	if((ctx->privs & PRIV_CLANS) == 0)
-	{
-		os<<L"-!- You don't have permission to do that";
-		return;
+	try{
+		if((ctx->privs & PRIV_CLANS) == 0)
+			throw BaseException("You don't have permission to do that");
+
+		if(ctx->parms.size() != 2)
+			throw BaseException("Missing parameter(s) - should be /clan-delete clan");
+
+		std::string clanName = wide_to_narrow(ctx->parms[1]);
+		u16 clanId = ctx->env->clansManager.clanId(clanName);
+
+		if(!clanId)
+			throw BaseException("Bad clan name or clan deleted");
+
+		if( (ctx->privs & PRIV_CLANS_ADMIN) == 0 && clanId != ctx->player->clanOwner)
+			throw BaseException("Only clan's owner may delete it!");
+
+		ctx->env->clansManager.deleteClan(clanId);
+		if(ctx->player->clanOwner == clanId) ctx->player->clanOwner = 0;
+		else; //TODO: find clan's real owner and inform reset his clanOwner variable
+
+		ctx->server->BroadcastClanDeleted(clanId);
+		os<< L"-!- Clan '"<<ctx->parms[1]<<"' deleted.";
+
+	}catch(BaseException& ex){
+		std::wstring msg = narrow_to_wide(std::string(ex.what()));
+		os << L"-!- Error - clan not deleted (" << msg << L")";
 	}
-
-	if(ctx->parms.size() != 2)
-	{
-		os<<L"-!- Bad parameter(s)";
-		return;
-	}
-
-	std::string clanName = wide_to_narrow(ctx->parms[1]);
-	u16 clanId = ctx->env->clansManager.clanId(clanName);
-
-	if(!clanId || clanId != ctx->player->clanOwner){
-		os<< L"-!- Error - only clan's admin may delete it!";
-		return;
-	}
-
-	ctx->env->clansManager.deleteClan(clanId);
-	ctx->player->clanOwner = 0; //only clan owner can exec this func
-
-	ctx->server->BroadcastClanDeleted(clanId);
-	os<< L"-!- Clan '"<<ctx->parms[1]<<"' deleted.";
 }
 
 void cmd_clanJoin(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
-	if((ctx->privs & PRIV_CLANS) == 0)
-	{
-		os<<L"-!- You don't have permission to do that";
-		return;
-	}
-
-	if(ctx->parms.size() != 3)
-	{
-		os<<L"-!- Missing parameter(s)";
-		return;
-	}
-
 	try{
-		/*int clan_i = stoi(ctx->parms[1]);
-		if( clan_i < 0 || clan_i > 0xFFFF ) throw 0;
-		u16 clan = (u16)clan_i;*/
+
+		if((ctx->privs & PRIV_CLANS) == 0) throw BaseException("You don't have permission to do that");
+
+		if(ctx->parms.size() != 3) throw BaseException("Missing parameter(s) - should be /clan-join clan player");
 
 		std::string clanName = wide_to_narrow(ctx->parms[1]);
 		u16 clan = ctx->env->clansManager.clanId(clanName);
-		if(!clan) throw 0;
+		if(!clan) throw BaseException("Bad clan name or clan deleted");
 
 		std::string playerName = wide_to_narrow(ctx->parms[2]);
-		if(playerName.length()==0) throw 0;
+		if(playerName.length()==0) throw BaseException("Bad player name");
 
-		if(ctx->player->clans.find(clan) == ctx->player->clans.end()) throw 0; //j!
+		if(!ctx->player->isClanModerator(clan)) throw BaseException("Only clan moderator can do this");
 
 		Player* player = ctx->env->getPlayer(playerName.c_str());
 
-		if(!player) throw 0;
+		if(!player) throw BaseException("Bad player name or player disconnected");
 
 		player->clans.insert(clan);
 		ctx->server->SendPlayerClan(player,false,clan);
 
 		os<< L"-!- clan-join - success";
 		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" joined clan " + ctx->parms[1]);
-	}catch(...){
-		os<< L"-!- Error - player not added to clan.";
+
+	}catch(BaseException& ex){
+		std::wstring msg = narrow_to_wide(std::string(ex.what()));
+		os << L"-!- Error - player not added to clan (" << msg << L")";
 	}
 	
 }
@@ -417,47 +409,163 @@ void cmd_clanJoin(std::wostringstream &os,
 void cmd_clanKick(std::wostringstream &os,
 	ServerCommandContext *ctx)
 {
-	if((ctx->privs & PRIV_CLANS) == 0)
-	{
-		os<<L"-!- You don't have permission to do that";
-		return;
-	}
-
-	if(ctx->parms.size() != 3)
-	{
-		os<<L"-!- Missing parameter(s)";
-		return;
-	}
-
 	try{
-		/*int clan_i = stoi(ctx->parms[1]);
-		if( clan_i < 0 || clan_i > 0xFFFF ) throw 0;
-		u16 clan = (u16)clan_i;*/
-		
+		if((ctx->privs & PRIV_CLANS) == 0) throw BaseException("You don't have permission to do that");
+
+		if(ctx->parms.size() != 3) throw BaseException("Missing parameter(s) - should be /clan-kick clan player");
+	
 		std::string clanName = wide_to_narrow(ctx->parms[1]);
 		u16 clan = ctx->env->clansManager.clanId(clanName);
-		if(!clan) throw 0; //clan must exist
+		if(!clan) throw BaseException("Bad clan name or clan deleted"); //clan must exist
 
-		if(ctx->player->clans.find(clan) == ctx->player->clans.end()) throw 0; //sender must be in this clan
+		if(!ctx->player->isClanModerator(clan)) throw BaseException("Only clan moderator can do this"); //sender must be moderator of this clan
 
 		std::string playerName = wide_to_narrow(ctx->parms[2]);
-		if(playerName.length()==0) throw 0;
+		if(playerName.length()==0) throw BaseException("Bad player name");
 		Player* player = ctx->env->getPlayer(playerName.c_str());
-		if(!player) throw 0; //player must exist
+		if(!player) throw BaseException("Bad player name or player disconnected"); //player must exist
 
-		if(player->clanOwner == clan) throw 0; //player can't be owner of that clan
+		if(player->clanOwner == clan) throw BaseException("Clan's owner cannot be kicked out"); //player can't be owner of that clan
 
 		player->clans.erase(clan);
+		player->clansModerator.erase(clan);
 		ctx->server->SendPlayerClan(player,true,clan);
 
 		os<< L"-!- clan-kick - success";
 		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" kicked from clan " + ctx->parms[1]);
-	}catch(...){
-		os<< L"-!- Error - player not kicked from clan.";
+
+	}catch(BaseException& ex){
+		std::wstring msg = narrow_to_wide(std::string(ex.what()));
+		os << L"-!- Error - player not kicked from clan. (" << msg << L")";
 	}
 	
 }
 
+void cmd_clanPromote(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	try{
+		if((ctx->privs & PRIV_CLANS) == 0) throw BaseException("You don't have permission to do that");
+
+		if(ctx->parms.size() != 3) throw BaseException("Missing parameter(s) - should be /clan-promote clan player");
+
+		std::string clanName = wide_to_narrow(ctx->parms[1]);
+		u16 clan = ctx->env->clansManager.clanId(clanName);
+		if(!clan) throw BaseException("Bad clan name or clan deleted"); //clan must exist
+
+		if(!ctx->player->isClanOwner(clan)) throw BaseException("Only clan owner can do this"); //must be admin
+
+		std::string playerName = wide_to_narrow(ctx->parms[2]);
+		if(playerName.length()==0) throw BaseException("Bad player name");
+
+		Player* player = ctx->env->getPlayer(playerName.c_str());
+		if(!player) throw BaseException("Bad player name or player disconnected"); //player must exist
+
+		if(!player->isClanMember(clan)){
+			player->clans.insert(clan);
+			ctx->server->SendPlayerClan(player,false,clan);
+		}
+
+		player->clansModerator.insert(clan);
+
+		os<< L"-!- clan-promote - success";
+		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" was promoted in clan " + ctx->parms[1]);
+
+	}catch(BaseException& ex){
+		std::wstring msg = narrow_to_wide(std::string(ex.what()));
+		os << L"-!- Error - can't promote player. (" << msg << L")";
+	}
+	
+}
+
+void cmd_clanDegrade(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	try{
+		if((ctx->privs & PRIV_CLANS) == 0) throw BaseException("You don't have permission to do that");
+
+		if(ctx->parms.size() != 3) throw BaseException("Missing parameter(s) - should be /clan-degrade clan player");
+
+		std::string clanName = wide_to_narrow(ctx->parms[1]);
+		u16 clan = ctx->env->clansManager.clanId(clanName);
+		if(!clan) throw BaseException("Bad clan name or clan deleted"); //clan must exist
+
+		if(!ctx->player->isClanOwner(clan)) throw BaseException("Only clan owner can do this"); //must be admin
+
+		std::string playerName = wide_to_narrow(ctx->parms[2]);
+		if(playerName.length()==0) throw BaseException("Bad player name");
+
+		Player* player = ctx->env->getPlayer(playerName.c_str());
+		if(!player) throw BaseException("Bad player name or player disconnected"); //player must exist
+
+		if(!player->isClanModerator(clan)) throw BaseException("Player is not a moderator");
+
+		player->clansModerator.erase(clan);
+
+		os<< L"-!- clan-degrade - success";
+		ctx->server->BroadcastChatMessage(L"-!- Player " + ctx->parms[2] + L" was degraded in clan " + ctx->parms[1]);
+
+	}catch(BaseException& ex){
+		std::wstring msg = narrow_to_wide(std::string(ex.what()));
+		os << L"-!- Error - can't degrade player. (" << msg << L")";
+	}
+	
+}
+
+void cmd_clanSpawn(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	try{
+		if((ctx->privs & PRIV_CLANS) == 0) throw BaseException("You don't have permission to do that");
+
+		if(ctx->parms.size() != 2) throw BaseException("Missing parameter(s) - should be /clan-spawn clan");
+
+		std::string clanName = wide_to_narrow(ctx->parms[1]);
+		u16 clan = ctx->env->clansManager.clanId(clanName);
+		if(!clan) throw BaseException("Bad clan name or clan deleted"); //clan must exist
+
+		if(!ctx->player->isClanModerator(clan)) throw BaseException("Only clan moderator can do this"); //must be admin
+
+		v3f pos = ctx->player->getPosition();
+		ctx->env->clansManager.getClan(clan)->setSpawnPoint(pos);
+
+		//ctx->server->BroadcastClanSpawn(clan,pos);
+
+		os << L"-!- clan-spawn - success";
+
+	}catch(BaseException& ex){
+		std::wstring msg = narrow_to_wide(std::string(ex.what()));
+		os << L"-!- Error - can't change clan's spawn point. (" << msg << L")";
+	}	
+}
+
+void cmd_clanInfo(std::wostringstream &os,
+	ServerCommandContext *ctx)
+{
+	try{
+		if((ctx->privs & PRIV_CLANS) == 0) throw BaseException("You don't have permission to do that");
+		
+		const ClansManager& cm = ctx->env->clansManager;
+		const Player& p = *ctx->player;
+
+		if(p.clans.size()>0){
+			os << L"-!- Your clans: ";
+
+			for(std::set<u16>::const_iterator it=p.clans.begin(); it!=p.clans.end(); it++){
+				if(!cm.clanExists(*it))continue;
+				if(it!=p.clans.begin()) os << L", ";
+				os << narrow_to_wide(cm.clanNameNoEx(*it));
+				if(p.isClanOwner(*it)) os << L" (owner)";
+				else if(p.isClanModerator(*it)) os << L" (moderator)";
+			}
+		}else os << L"You don't belong to any clan.";
+
+	}catch(BaseException& ex){
+		std::wstring msg = narrow_to_wide(std::string(ex.what()));
+		os << L"-!- Error - can't get clans info. (" << msg << L")";
+	}
+	
+}
 
 std::wstring processServerCommand(ServerCommandContext *ctx)
 {
@@ -503,21 +611,21 @@ std::wstring processServerCommand(ServerCommandContext *ctx)
 	else if(ctx->parms[0] == L"clearobjects")
 		cmd_clearobjects(os, ctx);
 	else if(ctx->parms[0] == L"clan-new")
-	{
 		cmd_clanNew(os, ctx);
-	}
 	else if(ctx->parms[0] == L"clan-delete")
-	{
 		cmd_clanDelete(os, ctx);
-	}
 	else if(ctx->parms[0] == L"clan-join")
-	{
 		cmd_clanJoin(os, ctx);
-	}
 	else if(ctx->parms[0] == L"clan-kick")
-	{
 		cmd_clanKick(os, ctx);
-	}
+	else if(ctx->parms[0] == L"clan-promote")
+		cmd_clanPromote(os, ctx);
+	else if(ctx->parms[0] == L"clan-degrade")
+		cmd_clanDegrade(os, ctx);
+	else if(ctx->parms[0] == L"clan-spawn")
+		cmd_clanSpawn(os, ctx);
+	else if(ctx->parms[0] == L"clan-info")
+		cmd_clanInfo(os, ctx);
 	else
 		os<<L"-!- Invalid command: " + ctx->parms[0];
 	

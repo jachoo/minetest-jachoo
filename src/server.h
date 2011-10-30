@@ -428,10 +428,12 @@ public:
 	void BroadcastChatMessage(const std::wstring &message); //j - moved from private
 	void SendPlayerClan(Player *player, bool kick, u16 clan); //j; if clan=0, all clans are sent
 	void SendClanName(u16 peer_id, u16 clan, const std::string& name); //j
-	void SendClanNames(u16 peer_id, const std::map<u16,std::string>& clans); //j
-	void BroadcastPlayerClan(u16 clan, const std::string& name); //j
+	void SendClans(u16 peer_id, const std::map<u16,Clan>& clans, const std::set<u16>& deleted); //j
+	void BroadcastClanName(u16 clan, const std::string& name); //j
 	void SendClanDeleted(u16 peer_id,u16 clan); //j
 	void BroadcastClanDeleted(u16 clan); //j
+	//void SendClanSpawn(u16 peer_id,u16 clan, v3f spawn); //j
+	//void BroadcastClanSpawn(u16 clan, v3f spawn); //j
 	
 	u64 getPlayerAuthPrivs(const std::string &name)
 	{

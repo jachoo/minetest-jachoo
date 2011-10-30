@@ -168,9 +168,24 @@ public:
 	u16 peer_id;
 
 	//j
-	std::set<int> clans;
+	std::set<u16> clans;
+	std::set<u16> clansModerator;
 	u16 clanOwner;
 	bool canModify(const ClansManager* clansManager, Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const;
+	inline bool isClanMember(u16 clan) const {
+		if(clan==0)return false; //do we need this?
+		return clans.find(clan) != clans.end();
+	}
+	inline bool isClanModerator(u16 clan) const {
+		if(clan==0)return false; //do we need this?
+		return clan==clanOwner || clansModerator.find(clan) != clansModerator.end();
+	}
+	inline bool isClanOwner(u16 clan) const {
+		if(clan==0)return false; //do we need this?
+		return clan == clanOwner;
+	}
+	std::pair<bool,v3f> findSpawnPos(const ClansManager& clansManager);
+	void actualizeClans(const ClansManager& clansManager);
 
 protected:
 	char m_name[PLAYERNAME_SIZE];

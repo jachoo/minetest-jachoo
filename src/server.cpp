@@ -2068,8 +2068,9 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 
 		// Send HP & clans
 		SendPlayerHP(player);
+		player->actualizeClans(m_env.clansManager);
 		SendPlayerClan(player,false,0);
-		SendClanNames(player->peer_id,m_env.clansManager.getNames());
+		SendClans(player->peer_id,m_env.clansManager.getClans(),m_env.clansManager.getDeleted());
 		
 		// Send time of day
 		{
@@ -3007,7 +3008,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			}
 
 			//player must be in this clan or clan is null
-			if(clan && player->clans.find(clan) == player->clans.end())
+			if(clan && !player->isClanMember(clan))
 				return;
 
 			block->setOwner(clan);
@@ -3882,10 +3883,11 @@ void Server::SendPlayerClan(Player *player, bool kick = false, u16 clan = 0)
 		//send all clans
 		u16 count = (u16)player->clans.size();
 		writeU16(os,count);
-		for(std::set<int>::const_iterator it=player->clans.begin(); it!=player->clans.end(); it++){
+		for(std::set<u16>::const_iterator it=player->clans.begin(); it!=player->clans.end(); it++){
 			writeU8(os,false);
 			writeU16(os,*it);
 		}
+		//TODO: send admin/moderator/member info // hmm... do we need that?
 	}
 
 	// Make data buffer
@@ -3903,11 +3905,11 @@ void writeClanIdName(std::ostringstream& os, u16 id, const std::string& name){
 		u8		clan name lenght
 		string	clan name
 	*/
-	if(name.length() > 0xFFFF) throw BaseException("too long clan name");
+	if(name.length() > 0xFF) throw BaseException("too long clan name");
 
 	writeU16(os,id);
 
-	u16 len = (u16)name.length();
+	u8 len = (u8)name.length();
 	writeU8(os,len);
 
 	//for(int i=0; i<len; i++) writeU8(name[i]);
@@ -3948,7 +3950,36 @@ void Server::SendClanName(u16 peer_id, u16 clan, const std::string& name)
 }
 
 //j
-void Server::SendClanNames(u16 peer_id, const std::map<u16,std::string>& clans)
+//if clan = NULL -> clan is deleted
+void writeClan(std::ostringstream& os, u16 id, const Clan* clan){
+	/*
+		u16		clan id
+		u8		clan name lenght (NOTE: if = 0 -> clan is deleted!!!)
+		string	clan name
+		#v3f1000	clan spawn point (NOTE: if > X 32000 -> spawn point not set!)
+	*/
+
+	if(clan==NULL){
+		writeU16(os,id);
+		writeU8(os,0);
+		//writeV3F1000(os,v3f(32500));
+	}else{
+		if(clan->name.length() > 0xFF) throw BaseException("too long clan name");
+
+		writeU16(os,id);
+
+		u8 len = (u8)clan->name.length();
+		writeU8(os,len);
+
+		os << clan->name;
+
+		/*if(clan->hasSpawnPoint) writeV3F1000(os,clan->spawnPoint);
+		else writeV3F1000(os,v3f(32500));*/
+	}
+}
+
+//j
+void Server::SendClans(u16 peer_id, const std::map<u16,Clan>& clans, const std::set<u16>& deleted)
 {
 	DSTACK(__FUNCTION_NAME);
 	/*
@@ -3956,22 +3987,27 @@ void Server::SendClanNames(u16 peer_id, const std::map<u16,std::string>& clans)
 		u16		count
 
 		u16		clan id
-		u8		clan name lenght
+		u8		clan name lenght (NOTE: if = 0 -> clan is deleted!!!)
 		string	clan name
+		#v3f1000	clan spawn point (NOTE: if > X 32000 -> spawn point not set!)
+
 		...
 	*/
-	u16 count = (u16)clans.size();
+	u16 count = (u16)clans.size() + (u16)deleted.size();
 
 	if(count==0) return;
 
 	std::ostringstream os(std::ios_base::binary);
-	writeU16(os, TOCLIENT_CLAN_NAMES);
+	writeU16(os, TOCLIENT_CLANS);
 	writeU16(os,count);
 
-	for(std::map<u16,std::string>::const_iterator it=clans.begin(); it!=clans.end(); it++)
-		writeClanIdName(os,it->first,it->second);
+	for(std::map<u16,Clan>::const_iterator it=clans.begin(); it!=clans.end(); it++)
+		writeClan(os,it->first,&it->second);
 
-	dstream<<"Server sending TOCLIENT_CLAN_NAMES - "
+	for(std::set<u16>::const_iterator it=deleted.begin(); it!=deleted.end(); it++)
+		writeClan(os,*it,NULL);
+
+	dstream<<"Server sending TOCLIENT_CLANS - "
 		<< "count=" << count
 		<<std::endl;
 
@@ -3983,7 +4019,7 @@ void Server::SendClanNames(u16 peer_id, const std::map<u16,std::string>& clans)
 }
 
 //j
-void Server::BroadcastPlayerClan(u16 clan, const std::string& name)
+void Server::BroadcastClanName(u16 clan, const std::string& name)
 {
 	for(core::map<u16, RemoteClient*>::Iterator
 		i = m_clients.getIterator();
@@ -4038,6 +4074,48 @@ void Server::BroadcastClanDeleted(u16 clan)
 		SendClanDeleted(client->peer_id,clan);
 	}
 }
+
+//j
+//void Server::SendClanSpawn(u16 peer_id, u16 clan, v3f spawn)
+//{
+//	DSTACK(__FUNCTION_NAME);
+//	std::ostringstream os(std::ios_base::binary);
+//	/*
+//		u16		command
+//		u16		clan id
+//		v3f1000	clan spawn point X,Y,Z (NOTE: if X > 32000 -> spawn point not set!)
+//	*/
+//	writeU16(os, TOCLIENT_CLAN_SPAWNPOINT);
+//	writeU16(os, clan);
+//	writeV3F1000(os, spawn);
+//	
+//	dstream<<"Server sending TOCLIENT_CLAN_DELETED - "
+//				<< "id=" << clan
+//				<<std::endl;
+//
+//	// Make data buffer
+//	std::string s = os.str();
+//	SharedBuffer<u8> data((u8*)s.c_str(), s.size());
+//	// Send as reliable
+//	m_con.Send(peer_id, 0, data, true);
+//}
+//
+////j
+//void Server::BroadcastClanSpawn(u16 clan, v3f spawn)
+//{
+//	for(core::map<u16, RemoteClient*>::Iterator
+//		i = m_clients.getIterator();
+//		i.atEnd() == false; i++)
+//	{
+//		// Get client and check that it is valid
+//		RemoteClient *client = i.getNode()->getValue();
+//		assert(client->peer_id == i.getNode()->getKey());
+//		if(client->serialization_version == SER_FMT_VER_INVALID)
+//			continue;
+//
+//		SendClanSpawn(client->peer_id,clan,spawn);
+//	}
+//}
 
 void Server::sendRemoveNode(v3s16 p, u16 ignore_id,
 	core::list<u16> *far_players, float far_d_nodes)
@@ -4310,8 +4388,9 @@ void Server::HandlePlayerHP(Player *player, s16 damage)
 
 void Server::RespawnPlayer(Player *player)
 {
-	v3f pos = findSpawnPos(m_env.getServerMap());
-	player->setPosition(pos);
+	std::pair<bool,v3f> pos = player->findSpawnPos(m_env.clansManager);
+	if(!pos.first) pos.second = findSpawnPos(m_env.getServerMap());
+	player->setPosition(pos.second);
 	player->hp = 20;
 	SendMovePlayer(player);
 	SendPlayerHP(player);
