@@ -463,18 +463,21 @@ void getPointedNode(Client *client, v3f player_position,
 
 			for(s32 i=0; i<2; i++)
 			{
-				if(dir == v3s16(1,0,0))
-					vertices[i].rotateXZBy(0);
-				if(dir == v3s16(-1,0,0))
-					vertices[i].rotateXZBy(180);
-				if(dir == v3s16(0,0,1))
-					vertices[i].rotateXZBy(90);
-				if(dir == v3s16(0,0,-1))
-					vertices[i].rotateXZBy(-90);
 				if(dir == v3s16(0,-1,0))
 					vertices[i].rotateXYBy(-90);
-				if(dir == v3s16(0,1,0))
+				else if(dir == v3s16(0,1,0))
 					vertices[i].rotateXYBy(90);
+				else{
+					if(dir == v3s16(1,0,0))
+						vertices[i].rotateXZBy(0);
+					if(dir == v3s16(-1,0,0))
+						vertices[i].rotateXZBy(180);
+					if(dir == v3s16(0,0,1))
+						vertices[i].rotateXZBy(90);
+					if(dir == v3s16(0,0,-1))
+						vertices[i].rotateXZBy(-90);
+					vertices[i].Y += BS/2;
+				}
 
 				vertices[i] += npf;
 			}

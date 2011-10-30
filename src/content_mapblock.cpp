@@ -374,8 +374,9 @@ void mapblock_mesh_generate_special(MeshMakeData *data,
 
 			material.setTexture(0,ap.atlas);
 
-			u8 l = decode_light(n.getLightBlend(data->m_daynight_ratio));
-			video::SColor c = MapBlock_LightColor(255, l);
+			/*u8 l = decode_light(n.getLightBlend(data->m_daynight_ratio));
+			video::SColor c = MapBlock_LightColor(255, l);*/
+			video::SColor c(0xFFFFFFFF);
 				
 			float d = (float)BS/16;
 			// Wall at X+ of node
@@ -398,18 +399,24 @@ void mapblock_mesh_generate_special(MeshMakeData *data,
 
 			for(s32 i=0; i<4; i++)
 			{
-				if(dir == v3s16(1,0,0))
-					vertices[i].Pos.rotateXZBy(0);
-				if(dir == v3s16(-1,0,0))
-					vertices[i].Pos.rotateXZBy(180);
-				if(dir == v3s16(0,0,1))
-					vertices[i].Pos.rotateXZBy(90);
-				if(dir == v3s16(0,0,-1))
-					vertices[i].Pos.rotateXZBy(-90);
+				//horizontal - on floor
 				if(dir == v3s16(0,-1,0))
 					vertices[i].Pos.rotateXYBy(-90);
-				if(dir == v3s16(0,1,0))
+				else if(dir == v3s16(0,1,0))
 					vertices[i].Pos.rotateXYBy(90);
+				else{ //vertical - on wall
+					if(dir == v3s16(1,0,0))
+						vertices[i].Pos.rotateXZBy(0);
+					else if(dir == v3s16(-1,0,0))
+						vertices[i].Pos.rotateXZBy(180);
+					else if(dir == v3s16(0,0,1))
+						vertices[i].Pos.rotateXZBy(90);
+					else if(dir == v3s16(0,0,-1))
+						vertices[i].Pos.rotateXZBy(-90);
+					//raise
+					vertices[i].Pos.Y += BS/2;
+				}
+				
 
 				vertices[i].Pos += intToFloat(p + blockpos_nodes, BS);
 			}

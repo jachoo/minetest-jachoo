@@ -710,7 +710,7 @@ void content_mapnode_init()
 	f->setInventoryTexture("teleport.png");
 	f->param_type = CPT_LIGHT;
 	f->light_propagates = true;
-	f->light_source = 3; //?
+	f->light_source = LIGHT_MAX - 3;
 	f->sunlight_propagates = true;
 	f->solidness = 0; // drawn separately, makes no faces
 	f->walkable = false;
