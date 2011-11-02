@@ -901,7 +901,7 @@ void Map::updateLighting(core::map<v3s16, MapBlock*> & a_blocks,
 /*
 */
 void Map::addNodeAndUpdate(v3s16 p, MapNode n,
-		core::map<v3s16, MapBlock*> &modified_blocks, std::string &player_name)
+		core::map<v3s16, MapBlock*> &modified_blocks, std::string &player_name,NodeMetadata *initial_metadata)
 {
 	/*PrintInfo(m_dout);
 	m_dout<<DTIME<<"Map::addNodeAndUpdate(): p=("
@@ -909,6 +909,7 @@ void Map::addNodeAndUpdate(v3s16 p, MapNode n,
 
 	//j
 	//one block may have only one border stone
+	//this check is duplicated at Server::ProcessData, to prevent setting block owner and removing borderstone from inventory -  but aborting borderstone placement.
 	if(n.getContent() == CONTENT_BORDERSTONE)
 	{
 		MapBlock * block = getBlockNoCreate(getNodeBlockPos(p));
@@ -1030,7 +1031,7 @@ void Map::addNodeAndUpdate(v3s16 p, MapNode n,
 		Add intial metadata
 	*/
 
-	NodeMetadata *meta_proto = content_features(n).initial_metadata;
+	NodeMetadata *meta_proto = initial_metadata ? initial_metadata : content_features(n).initial_metadata;
 	if(meta_proto)
 	{
 		NodeMetadata *meta = meta_proto->clone();

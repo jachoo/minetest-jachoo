@@ -41,6 +41,7 @@ Player::Player():
 	hp(20),
 	peer_id(PEER_ID_INEXISTENT),
 	clanOwner(0),
+	lastClan(0),
 	m_selected_item(0),
 	m_pitch(0),
 	m_yaw(0),

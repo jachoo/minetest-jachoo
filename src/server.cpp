@@ -2786,12 +2786,47 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 							getNodeBlockPos(p_over), BLOCK_EMERGE_FLAG_FROMDISK);
 					return;
 				}
+				
+				MaterialItem *mitem = (MaterialItem*)item;
+
+				NodeMetadata *initial_metadata=NULL;
+				u16 newowner=0;
+				// Only allow borderstone if player already belongs to some clan
+				if(mitem->getMaterial() == CONTENT_BORDERSTONE)
+				{	if(player->lastClan && player->clans.find(player->lastClan) == player->clans.end())
+						player->lastClan=0;	// was invalid (no longer member?)
+					if(!player->lastClan)
+					{	if(player->clanOwner)
+							player->lastClan=player->clanOwner;
+						else
+							if(!player->clans.empty())
+								player->lastClan=*player->clans.begin();
+					}
+					if(!player->lastClan)
+					{
+						actionstream<<player->getName()<<" failed to put borderstone"<<std::endl;
+						try{
+							SendChatMessage(peer_id,L"Server: You need to join or create a clan to use borderstones.");
+						}
+						catch(con::PeerNotFoundException &e)
+						{}
+						return;
+					}
+					actionstream<<player->getName()<<" will put cornerstone for clan "
+							<<player->lastClan
+							<<" ["<<m_env.clansManager.clanNameNoEx(player->lastClan)<<"]"<<std::endl;
+					MapBlock *block = m_env.getMap().getBlockNoCreateNoEx(getNodeBlockPos(p_over));
+					assert(block != NULL);
+					if(block->getOwner())	return;	//already has owner!
+
+					newowner=player->lastClan;
+					initial_metadata=new SignNodeMetadata("Property of "+m_env.clansManager.clanNameNoEx(player->lastClan));
+				}
 
 				// Reset build time counter
 				getClient(peer_id)->m_time_from_building = 0.0;
 				
 				// Create node data
-				MaterialItem *mitem = (MaterialItem*)item;
 				MapNode n;
 				n.setContent(mitem->getMaterial());
 
@@ -2855,7 +2890,22 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 					MapEditEventIgnorer ign(&m_ignore_map_edit_events);
 
 					std::string p_name = std::string(player->getName());
-					m_env.getMap().addNodeAndUpdate(p_over, n, modified_blocks, p_name);
+					m_env.getMap().addNodeAndUpdate(p_over, n, modified_blocks, p_name, initial_metadata);
+					if(initial_metadata) delete initial_metadata;
+					if(newowner)
+					{
+						MapBlock *block = m_env.getMap().getBlockNoCreateNoEx(getNodeBlockPos(p_over));
+						assert(block != NULL);
+						block->setOwner(newowner);
+						// force update for all clients
+						for(core::map<u16, RemoteClient*>::Iterator
+							i = m_clients.getIterator();
+							i.atEnd()==false; i++)
+						{
+							RemoteClient *client = i.getNode()->getValue();
+							if(client) client->SetBlockNotSent(getNodeBlockPos(p_over));
+						}
+					}
 				}
 				/*
 					Set blocks not sent to far players
@@ -3061,25 +3111,30 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			}
 			u16 clan = (u16)i_clan;*/
 
-			bool nullclan = false;
-			if(clanName == "#" || clanName == "" || clanName == "nobody") nullclan = true;
+//			bool nullclan = false;
+//			if(clanName == "#" || clanName == "" || clanName == "nobody") nullclan = true;
 
 			u16 clan = 0;
-			if(!nullclan){
+//			if(!nullclan){
 				clan = m_env.clansManager.clanId(clanName);
 				if(!clan){
 					derr_server<<"Wrong clan name"<<std::endl;
+					try{
+						SendChatMessage(peer_id,L"Server: You are not member of that clan.");
+					}
+					catch(con::PeerNotFoundException &e)
+					{}
 					return;
 				}
-			}
+//			}
 
 			//player must be in this clan or clan is null
 			if(clan && player->clans.find(clan) == player->clans.end())
 				return;
 
 			block->setOwner(clan);
-			if(clan) text = "Property of " + clanName;
-			else text = "Property of nobody";
+			player->lastClan=clan;
+			text = "Property of " + m_env.clansManager.clanNameNoEx(clan);
 		} else if( node.getContent() == CONTENT_TELEPORT ){
 
 			//j teleport
