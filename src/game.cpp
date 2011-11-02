@@ -1798,7 +1798,32 @@ void the_game(
 			NodeMetadata *meta = client.getNodeMetadata(nodepos);
 			if(meta)
 			{
+				//HACK: server should not be sending teleport info to clients at all...
 				infotext = narrow_to_wide(meta->infoText());
+				MapNode n = client.getNode(nodepos);
+				if(n.getContent() == CONTENT_TELEPORT)
+				{	
+					// meta/infotext contains text inside "" quotes.
+					// find 3rd comma
+					int icomma=infotext.find(L',');
+					if(icomma>0) 
+						icomma=infotext.find(L',',icomma+1);
+					if(icomma>0) 
+						icomma=infotext.find(L',',icomma+1);
+
+					if(!canModify)
+					{
+						if(icomma<0)
+							infotext = L"Unnamed teleport";
+						else
+							infotext=L"Teleport: "+infotext.substr(icomma+1,infotext.length()-icomma-2);
+					}
+					else
+					{
+						if(icomma<0)
+							infotext = infotext.substr(0,infotext.length()-1)+L",Unnamed\"";
+					}
+				}
 			}
 			
 			//MapNode node = client.getNode(nodepos);
