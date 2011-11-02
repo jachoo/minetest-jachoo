@@ -1798,10 +1798,10 @@ void the_game(
 			NodeMetadata *meta = client.getNodeMetadata(nodepos);
 			if(meta)
 			{
-				//HACK: server should not be sending teleport info to clients at all...
+				//maybe server should not be sending teleport info to clients at all?
 				infotext = narrow_to_wide(meta->infoText());
-				MapNode n = client.getNode(nodepos);
-				if(n.getContent() == CONTENT_TELEPORT)
+				content_t content = map->getNodeNoEx(nodepos).getContent();
+				if(content == CONTENT_TELEPORT)
 				{	
 					// meta/infotext contains text inside "" quotes.
 					// find 3rd comma
@@ -1823,6 +1823,17 @@ void the_game(
 						if(icomma<0)
 							infotext = infotext.substr(0,infotext.length()-1)+L",Unnamed\"";
 					}
+				}
+				else
+				if(content == CONTENT_BORDERSTONE)
+				{	char ts[50];
+					v3s16 tp=getContainerPos(nodepos,MAP_BLOCKSIZE);
+					tp*=MAP_BLOCKSIZE;
+					snprintf(ts, 50, "Protected area: %i<=X<%i, %i<=Y<%i, %i<=Z<%i",
+						tp.X,tp.X+MAP_BLOCKSIZE,
+						tp.Y,tp.Y+MAP_BLOCKSIZE,
+						tp.Z,tp.Z+MAP_BLOCKSIZE);
+					infotext=narrow_to_wide(ts).c_str();
 				}
 			}
 			
