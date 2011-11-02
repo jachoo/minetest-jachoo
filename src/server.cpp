@@ -1816,13 +1816,16 @@ void Server::Receive()
 	}
 }
 
+//TODO: move this to some map class?
 bool getTeleportTarget(/*const*/ ServerEnvironment *m_env,/*in+out*/ v3s16 &where,/*out*/v3f &tgt)
 {
 	// actionstream<<"Is Teleport at: "<<"("<<where.X<<","<<where.Y<<","<<where.Z<<")     "<<std::endl;
 	SignNodeMetadata* meta=NULL;
+	// check player "foot block"
 	if(m_env->getMap().getNodeNoEx(where).getContent() == CONTENT_TELEPORT)
 		meta = (SignNodeMetadata*)m_env->getMap().getNodeMetadata(where);
 	else {
+		// check player "head block"
 		where.Y++;
 		if(where.Y<MAP_GENERATION_LIMIT-1)
 			if(m_env->getMap().getNodeNoEx(where).getContent() == CONTENT_TELEPORT)
