@@ -154,4 +154,9 @@
 # Set to true to enable experimental features or stuff that is tested
 # (varies from version to version, usually not useful at all)
 #enable_experimental = false
-
+# 0 - disables crafted teleports. 1 - teleport work if target area exists and there are 2 air/water (clear) tiles
+# 2 - teleport A works iff it points to clear area containing teleport B, and teleport B points back to teleport A
+# 3 or more - just like 2 but there can be 3 of more teleports in loop (warning - high value is bad for server performance)
+#crafted_teleports = 4
+#are players allowed to build connecting to border/edge of hostile clan territory
+#build_on_borders = false

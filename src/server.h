@@ -432,6 +432,7 @@ public:
 	void BroadcastClanName(u16 clan, const std::string& name); //j
 	void SendClanDeleted(u16 peer_id,u16 clan); //j
 	void BroadcastClanDeleted(u16 clan); //j
+	void KillPlayer(Player *player); //p
 	//void SendClanSpawn(u16 peer_id,u16 clan, v3f spawn); //j
 	//void BroadcastClanSpawn(u16 clan, v3f spawn); //j
 	

@@ -1816,6 +1816,41 @@ void Server::Receive()
 	}
 }
 
+//TODO: move this to some map class?
+bool getTeleportTarget(/*const*/ ServerEnvironment *m_env,/*in+out*/ v3s16 &where,/*out*/v3f &tgt)
+{
+	// actionstream<<"Is Teleport at: "<<"("<<where.X<<","<<where.Y<<","<<where.Z<<")     "<<std::endl;
+	SignNodeMetadata* meta=NULL;
+	// check player "foot block"
+	if(m_env->getMap().getNodeNoEx(where).getContent() == CONTENT_TELEPORT)
+		meta = (SignNodeMetadata*)m_env->getMap().getNodeMetadata(where);
+	else {
+		// check player "head block"
+		where.Y++;
+		if(where.Y<MAP_GENERATION_LIMIT-1)
+			if(m_env->getMap().getNodeNoEx(where).getContent() == CONTENT_TELEPORT)
+				meta = (SignNodeMetadata*)m_env->getMap().getNodeMetadata(where);
+	}
+
+	if(meta){
+		std::string text = meta->getText();
+		if(text == "")
+			return false;
+		str_replace_char(text,',',' ');
+		std::istringstream is(text);
+		is >> tgt.X >> tgt.Y >> tgt.Z;
+
+		if(	tgt.X >= MAP_GENERATION_LIMIT || tgt.X <= -MAP_GENERATION_LIMIT ||
+			tgt.Y >= MAP_GENERATION_LIMIT || tgt.Y <= -MAP_GENERATION_LIMIT ||
+			tgt.Z >= MAP_GENERATION_LIMIT || tgt.Z <= -MAP_GENERATION_LIMIT ||
+			( tgt.X == 0 && tgt.Y == 0 && tgt.Z == 0 && text.substr(0,5) != "0 0 0" )
+		) return false;
+		// actionstream<<"It points to: "<<"("<<tgt.X<<","<<tgt.Y<<","<<tgt.Z<<")     "<<std::endl;
+		return true;
+	}
+	return false;
+}
+
 void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 {
 	DSTACK(__FUNCTION_NAME);
@@ -2175,30 +2210,58 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 				<<"("<<position.X<<","<<position.Y<<","<<position.Z<<")"
 				<<" pitch="<<pitch<<" yaw="<<yaw<<std::endl;*/
 
-		//j
-		v3s16 pos = floatToInt(position, BS);
-		MapNode n = m_env.getMap().getNodeNoEx(pos);
-		if(n.getContent() == CONTENT_TELEPORT){
-			SignNodeMetadata* meta = (SignNodeMetadata*)m_env.getMap().getNodeMetadata(pos);
-			if(meta){
-				v3f t;
-				std::string text = meta->getText();
-				str_replace_char(text,',',' ');
-				std::istringstream is(text);
-				is >> t.X >> t.Y >> t.Z;
+		//j,placki
+		int teleport_option=g_settings->getU16("crafted_teleports");
+		if(teleport_option) {
+			v3s16 tele_posi = floatToInt(position, BS);
 
-				//TODO: map limits!
-				if(	t.X > 32000 || t.X < -32000 ||
-					t.Y > 32000 || t.Y < -32000 ||
-					t.Z > 32000 || t.Z < -32000 ||
-					(t.X == 0 && t.Y == 0 && t.Z == 0)
-				) return;
-
-				dout_server << "Teleporting: " << text << std::endl;
-				player->setPosition(t*BS);
-				SendMovePlayer(player);
+			if(player->lastTeleportPos.X != FLT_MAX){
+				if(player->getPosition().getDistanceFrom(player->lastTeleportPos) <= BS*3/2) //1 tile away
+					return; //allow player to leave teleport destination
+				else
+					player->lastTeleportPos.X=FLT_MAX;	//player left previous teleport destination
 			}
-		}
+
+			v3f tgtf;
+			if(getTeleportTarget(&m_env,tele_posi,tgtf)){
+				if(player->lastTeleportPos == tgtf*BS)
+					return;	//already checked... and failed, so skip checks.
+				player->lastTeleportPos=tgtf*BS;
+
+				// check: is there known and empty place to teleport to?
+				v3s16 tgti=floatToInt(tgtf, 1);
+				content_t c1,c2;
+				c1=m_env.getMap().getNodeNoEx(tgti).getContent();
+				tgti.Y++;
+				c2=m_env.getMap().getNodeNoEx(tgti).getContent();
+				if((c1==CONTENT_IGNORE)||(c2==CONTENT_IGNORE))	//teleporting to unknown space?
+					return;
+				if(content_features(c1).walkable || content_features(c2).walkable)
+					return;
+
+				if(teleport_option > 1){
+					tgti=floatToInt(tgtf, 1);
+					bool loop=false;
+					while(!loop && teleport_option>1)
+					{	//check if there is teleport at primary teleport target, and it loops back.
+						v3f tgtfnext;
+						if(getTeleportTarget(&m_env,tgti,tgtfnext)){
+							tgti=floatToInt(tgtfnext, 1);
+							loop=(tele_posi.getDistanceFrom(tgti)<=1);	// tile away
+							//actionstream<<" D:"<<tele_posi.getDistanceFrom(tgti)<<" from="<<"("<<tgtf.X<<","<<tgtf.Y<<","<<tgtf.Z<<")"<<
+							//"  to="<<"("<<tgtfnext.X<<","<<tgtfnext.Y<<","<<tgtfnext.Z<<")     "<< std::endl;
+						}	else return;	//no teleport at destination
+						teleport_option--;
+					}
+					if(!loop)
+						return;
+				}
+
+				dout_server << "Teleporting: " << tgtf.X << " " << tgtf.Y << " " << tgtf.Z << std::endl;
+				player->setPosition(tgtf*BS);
+				SendMovePlayer(player);
+			}	//teleport exists
+		}	//teleport_option
 	}
 	else if(command == TOSERVER_GOTBLOCKS)
 	{
@@ -2410,8 +2473,16 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		p_over.Z = readS16(&data[13]);
 		u16 item_i = readU16(&data[15]);
 
-		//j
-		if( !player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_under) || !player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_over) )
+		//j,placki
+		bool canModifyOver = player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_over);
+		bool canModifyUnder = player->canModify(&m_env.clansManager,&m_env.getMap(),NULL,NULL,&p_under);
+		static const bool canBoB = g_settings->getBool("build_on_borders");
+		if(	   action != 2
+			&& (
+			        ( !canBoB && (!canModifyOver || !canModifyUnder) )
+		         || ( canBoB && ((action == 1 && !canModifyOver) || (action != 1 && !canModifyUnder)) )
+			   )
+		  )
 		{
 			derr_server<<"Player isn't owner of a block"<<std::endl;
 			RemoteClient *client = getClient(peer_id);
@@ -2720,12 +2791,47 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 							getNodeBlockPos(p_over), BLOCK_EMERGE_FLAG_FROMDISK);
 					return;
 				}
+				
+				MaterialItem *mitem = (MaterialItem*)item;
+
+				NodeMetadata *initial_metadata=NULL;
+				u16 newowner=0;
+				// Only allow borderstone if player already belongs to some clan
+				if(mitem->getMaterial() == CONTENT_BORDERSTONE)
+				{	if(player->lastClan && player->clans.find(player->lastClan) == player->clans.end())
+						player->lastClan=0;	// was invalid (no longer member?)
+					if(!player->lastClan)
+					{	if(player->clanOwner)
+							player->lastClan=player->clanOwner;
+						else
+							if(!player->clans.empty())
+								player->lastClan=*player->clans.begin();
+					}
+					if(!player->lastClan)
+					{
+						actionstream<<player->getName()<<" failed to put borderstone"<<std::endl;
+						try{
+							SendChatMessage(peer_id,L"Server: You need to join or create a clan to use borderstones.");
+						}
+						catch(con::PeerNotFoundException &e)
+						{}
+						return;
+					}
+					actionstream<<player->getName()<<" will put cornerstone for clan "
+							<<player->lastClan
+							<<" ["<<m_env.clansManager.clanNameNoEx(player->lastClan)<<"]"<<std::endl;
+					MapBlock *block = m_env.getMap().getBlockNoCreateNoEx(getNodeBlockPos(p_over));
+					assert(block != NULL);
+					if(block->getOwner())	return;	//already has owner!
+
+					newowner=player->lastClan;
+					initial_metadata=new SignNodeMetadata("Property of "+m_env.clansManager.clanNameNoEx(player->lastClan));
+				}
 
 				// Reset build time counter
 				getClient(peer_id)->m_time_from_building = 0.0;
 				
 				// Create node data
-				MaterialItem *mitem = (MaterialItem*)item;
 				MapNode n;
 				n.setContent(mitem->getMaterial());
 
@@ -2789,7 +2895,22 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 					MapEditEventIgnorer ign(&m_ignore_map_edit_events);
 
 					std::string p_name = std::string(player->getName());
-					m_env.getMap().addNodeAndUpdate(p_over, n, modified_blocks, p_name);
+					m_env.getMap().addNodeAndUpdate(p_over, n, modified_blocks, p_name, initial_metadata);
+					if(initial_metadata) delete initial_metadata;
+					if(newowner)
+					{
+						MapBlock *block = m_env.getMap().getBlockNoCreateNoEx(getNodeBlockPos(p_over));
+						assert(block != NULL);
+						block->setOwner(newowner);
+						// force update for all clients
+						for(core::map<u16, RemoteClient*>::Iterator
+							i = m_clients.getIterator();
+							i.atEnd()==false; i++)
+						{
+							RemoteClient *client = i.getNode()->getValue();
+							if(client) client->SetBlockNotSent(getNodeBlockPos(p_over));
+						}
+					}
 				}
 				/*
 					Set blocks not sent to far players
@@ -2995,25 +3116,30 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			}
 			u16 clan = (u16)i_clan;*/
 
-			bool nullclan = false;
-			if(clanName == "#" || clanName == "" || clanName == "nobody") nullclan = true;
+//			bool nullclan = false;
+//			if(clanName == "#" || clanName == "" || clanName == "nobody") nullclan = true;
 
 			u16 clan = 0;
-			if(!nullclan){
+//			if(!nullclan){
 				clan = m_env.clansManager.clanId(clanName);
 				if(!clan){
 					derr_server<<"Wrong clan name"<<std::endl;
+					try{
+						SendChatMessage(peer_id,L"Server: You are not member of that clan.");
+					}
+					catch(con::PeerNotFoundException &e)
+					{}
 					return;
 				}
-			}
+//			}
 
 			//player must be in this clan or clan is null
 			if(clan && !player->isClanMember(clan))
 				return;
 
 			block->setOwner(clan);
-			if(clan) text = "Property of " + clanName;
-			else text = "Property of nobody";
+			player->lastClan=clan;
+			text = "Property of " + m_env.clansManager.clanNameNoEx(clan);
 		} else if( node.getContent() == CONTENT_TELEPORT ){
 
 			//j teleport
@@ -4349,6 +4475,10 @@ void Server::SendBlocks(float dtime)
 /*
 	Something random
 */
+void Server::KillPlayer(Player *player)
+{	// to consider: in creative or if hp is disabled: just respawn, so inventory is not lost
+	HandlePlayerHP(player,32767);
+}
 
 void Server::HandlePlayerHP(Player *player, s16 damage)
 {

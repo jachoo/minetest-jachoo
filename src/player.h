@@ -172,6 +172,8 @@ public:
 	std::set<u16> clansModerator;
 	u16 clanOwner;
 	bool canModify(const ClansManager* clansManager, Map* map, MapBlock* block, MapNode* node, v3s16* nodepos) const;
+	v3f lastTeleportPos;	//server: remember position player teleported to, to let him move away.
+	u16 lastClan;	//server: remember last clan put into borderstone
 	inline bool isClanMember(u16 clan) const {
 		if(clan==0)return false; //do we need this?
 		return clans.find(clan) != clans.end();

@@ -936,12 +936,14 @@ void the_game(
 			L"",
 			core::rect<s32>(0,0,500,text_height*2+5) + v2s32(100,200), //j
 			false, false, guiroot);
+	guitext_info->setBackgroundColor(video::SColor(0x20000000));
 
 	// Ownership info (clans) //j
 	gui::IGUIStaticText *guitext_ownership = guienv->addStaticText(
 			L"",
-			core::rect<s32>(0,0,200,text_height+5) + v2s32(100,450), //j
+			core::rect<s32>(0,0,500,text_height+5) + v2s32(100,450), //j
 			false, false, guiroot);
+	guitext_ownership->setBackgroundColor(video::SColor(0x20000000));
 	
 	// Chat text
 	gui::IGUIStaticText *guitext_chat = guienv->addStaticText(
@@ -1765,8 +1767,12 @@ void the_game(
 			bool canModifyNeighbour = player->canModify(&client.getEnv()->clansManager,NULL,block2,NULL,NULL);
 			bool canModify = canModifyNeighbour && player->canModify(&client.getEnv()->clansManager,NULL,block,NULL,NULL);
 
-			if(block_owner || block2_owner )
+			if(block_owner || block2_owner ){
+				if(block_owner == block2_owner)
 				ownershiptext = L"Property of clan ";
+				else
+					ownershiptext = L"Border of clan ";
+			}
 
 			if(block_owner)
 				ownershiptext += narrow_to_wide(clansManager->clanNameNoEx(block_owner));
@@ -1797,7 +1803,43 @@ void the_game(
 			NodeMetadata *meta = client.getNodeMetadata(nodepos);
 			if(meta)
 			{
+				//maybe server should not be sending teleport info to clients at all?
 				infotext = narrow_to_wide(meta->infoText());
+				content_t content = map->getNodeNoEx(nodepos).getContent();
+				if(content == CONTENT_TELEPORT)
+				{	
+					// meta/infotext contains text inside "" quotes.
+					// find 3rd comma
+					int icomma=infotext.find(L',');
+					if(icomma>0) 
+						icomma=infotext.find(L',',icomma+1);
+					if(icomma>0) 
+						icomma=infotext.find(L',',icomma+1);
+
+					if(!canModify)
+					{
+						if(icomma<0)
+							infotext = L"Unnamed teleport";
+						else
+							infotext=L"Teleport: "+infotext.substr(icomma+1,infotext.length()-icomma-2);
+			}
+					else
+					{
+						if(icomma<0)
+							infotext = infotext.substr(0,infotext.length()-1)+L",Unnamed\"";
+					}
+				}
+				else
+				if(content == CONTENT_BORDERSTONE)
+				{	char ts[50];
+					v3s16 tp=getContainerPos(nodepos,MAP_BLOCKSIZE);
+					tp*=MAP_BLOCKSIZE;
+					snprintf(ts, 50, "Protected area: %i<=X<%i, %i<=Y<%i, %i<=Z<%i",
+						tp.X,tp.X+MAP_BLOCKSIZE,
+						tp.Y,tp.Y+MAP_BLOCKSIZE,
+						tp.Z,tp.Z+MAP_BLOCKSIZE);
+					infotext=narrow_to_wide(ts).c_str();
+				}
 			}
 			
 			//MapNode node = client.getNode(nodepos);
@@ -1932,7 +1974,7 @@ void the_game(
 				}
 			}
 			
-			if(canModify && input->getRightClicked())
+			if(canModifyNeighbour && input->getRightClicked())
 			{
 				infostream<<"Ground right-clicked"<<std::endl;
 				
@@ -2176,8 +2218,29 @@ void the_game(
 		}
 		
 		{
-			guitext_info->setText(infotext.c_str());
-			guitext_ownership->setText(ownershiptext.c_str());
+			if(infotext.length()>0){
+				guitext_info->setVisible(true);
+				guitext_info->setText(infotext.c_str());
+				guitext_info->setDrawBackground( true );
+				guitext_info->setMaxSize(
+					core::dimension2du(
+						guitext_info->getTextWidth(),
+						guitext_info->getTextHeight()
+					)
+				);
+			}else guitext_info->setVisible(false);
+
+			if(ownershiptext.length()>0){
+				guitext_ownership->setVisible(true);
+				guitext_ownership->setText(ownershiptext.c_str());
+				guitext_ownership->setDrawBackground( true );
+				guitext_ownership->setMaxSize(
+					core::dimension2du(
+						guitext_ownership->getTextWidth(),
+						guitext_ownership->getTextHeight()
+					)
+				);
+			}else guitext_ownership->setVisible(false);
 		}
 		
 		/*

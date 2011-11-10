@@ -42,13 +42,15 @@ Player::Player():
 	craftresult_is_preview(true),
 	hp(20),
 	peer_id(PEER_ID_INEXISTENT),
+	clanOwner(0),
+	lastClan(0),
 	m_selected_item(0),
 	m_pitch(0),
 	m_yaw(0),
 	m_speed(0,0,0),
-	m_position(0,0,0),
-	clanOwner(0)
+	m_position(0,0,0)
 {
+	lastTeleportPos.X=FLT_MAX;
 	updateName("<not set>");
 	resetInventory();
 }
@@ -848,27 +850,27 @@ void LocalPlayer::move(f32 dtime, Map &map, f32 pos_max_d,
 		Check if standing on a teleport
 		TODO: should it be at the beginning or at the end of this func?
 	*/
-	v3s16 standPos = floatToInt(position - v3f(0,BS/2,0), BS);
-	MapNode standNode = map.getNodeNoEx(standPos);
-	if(standNode.getContent() == CONTENT_TELEPORT){
-		SignNodeMetadata* meta = (SignNodeMetadata*)map.getNodeMetadata(standPos);
-		if(meta){
-			v3f t;
-			std::string text = meta->getText();
-			str_replace_char(text,',',' ');
-			std::istringstream is(text);
-			is >> t.X >> t.Y >> t.Z;
+	//v3s16 standPos = floatToInt(position - v3f(0,BS/2,0), BS);
+	//MapNode standNode = map.getNodeNoEx(standPos);
+	//if(standNode.getContent() == CONTENT_TELEPORT){
+	//	SignNodeMetadata* meta = (SignNodeMetadata*)map.getNodeMetadata(standPos);
+	//	if(meta){
+	//		v3f t;
+	//		std::string text = meta->getText();
+	//		str_replace_char(text,',',' ');
+	//		std::istringstream is(text);
+	//		is >> t.X >> t.Y >> t.Z;
 
-			//TODO: map limits!
-			if(	t.X > 32000 || t.X < -32000 ||
-				t.Y > 32000 || t.Y < -32000 ||
-				t.Z > 32000 || t.Z < -32000 ||
-				(t.X == 0 && t.Y == 0 && t.Z == 0)
-			) return;
+	//		//TODO: map limits!
+	//		if(	t.X > 32000 || t.X < -32000 ||
+	//			t.Y > 32000 || t.Y < -32000 ||
+	//			t.Z > 32000 || t.Z < -32000 ||
+	//			(t.X == 0 && t.Y == 0 && t.Z == 0)
+	//		) return;
 
-			setPosition(t*BS);
-		}
-	}
+	//		setPosition(t*BS);
+	//	}
+	//}
 }
 
 void LocalPlayer::move(f32 dtime, Map &map, f32 pos_max_d)
