@@ -850,6 +850,7 @@ void LocalPlayer::move(f32 dtime, Map &map, f32 pos_max_d,
 		Check if standing on a teleport
 		TODO: should it be at the beginning or at the end of this func?
 	*/
+	////j
 	//v3s16 standPos = floatToInt(position - v3f(0,BS/2,0), BS);
 	//MapNode standNode = map.getNodeNoEx(standPos);
 	//if(standNode.getContent() == CONTENT_TELEPORT){

@@ -1817,18 +1817,19 @@ void Server::Receive()
 }
 
 //TODO: move this to some map class?
+// throws InvalidPositionException (where = that wrong position)
 bool getTeleportTarget(/*const*/ ServerEnvironment *m_env,/*in+out*/ v3s16 &where,/*out*/v3f &tgt)
 {
 	// actionstream<<"Is Teleport at: "<<"("<<where.X<<","<<where.Y<<","<<where.Z<<")     "<<std::endl;
 	SignNodeMetadata* meta=NULL;
 	// check player "foot block"
-	if(m_env->getMap().getNodeNoEx(where).getContent() == CONTENT_TELEPORT)
+	if(m_env->getMap().getNode(where).getContent() == CONTENT_TELEPORT)
 		meta = (SignNodeMetadata*)m_env->getMap().getNodeMetadata(where);
 	else {
 		// check player "head block"
 		where.Y++;
 		if(where.Y<MAP_GENERATION_LIMIT-1)
-			if(m_env->getMap().getNodeNoEx(where).getContent() == CONTENT_TELEPORT)
+			if(m_env->getMap().getNode(where).getContent() == CONTENT_TELEPORT)
 				meta = (SignNodeMetadata*)m_env->getMap().getNodeMetadata(where);
 	}
 
@@ -1849,6 +1850,88 @@ bool getTeleportTarget(/*const*/ ServerEnvironment *m_env,/*in+out*/ v3s16 &wher
 		return true;
 	}
 	return false;
+}
+
+static void getTeleportDirection(const MapNode& in, const MapNode& out, Player& player)
+{
+#if 0
+#define JLOG(x) std::cout << x << std::endl
+#define JV3(x) '[' << x.X << ',' << x.Y << ',' << x.Z << ']'
+#else
+#define JLOG(x)
+#endif
+
+	JLOG("---------------");
+
+	JLOG("old pitch: " << player.getPitch());
+	JLOG("old yaw: " << player.getYaw());
+
+	v3s16 din = unpackDir(in.param2);
+	v3s16 dout = unpackDir(out.param2);
+
+	JLOG("in: " << JV3(din));
+	JLOG("out: " << JV3(dout));
+
+	v3f dinf(-din.X,-din.Y,-din.Z);
+	v3f doutf(dout.X,dout.Y,dout.Z);
+
+	v3f speed = player.getSpeed();
+	JLOG("old speed: " << JV3(speed));
+
+	f32 pitch = player.getPitch();
+	f32 yaw = player.getYaw();
+
+	if(din.Y==0 && dout.Y==0){
+		//both vertical (on the wall)
+		v3f rotIn = dinf.getHorizontalAngle();
+		v3f rotOut = doutf.getHorizontalAngle();
+
+		f32 rotXZ = rotOut.Y - rotIn.Y;
+
+		JLOG("rotIn: " << JV3(rotIn));
+		JLOG("rotOut: " << JV3(rotOut));
+
+		yaw -= rotXZ;
+
+		speed.rotateXZBy(rotXZ);
+		
+	}else if(din.Y!=0 && dout.Y!=0){
+		//both horizontal (floor/roof)
+		if(din.Y == dout.Y) //the same direction
+			speed.Y *= -1.f;
+	}else{
+		//mixed directions
+		f32 speedVal = speed.getLength();
+		speed = -doutf * speedVal;
+
+		if(dout.Y==0){
+			//exit vertical (on the wall)
+			v3f rotOut = doutf.getHorizontalAngle();
+			yaw = rotOut.Y;
+			pitch = 0.f;
+			/*if(dout.X!=0)
+				speed.rotateXYBy(40.f);
+			else
+				speed.rotateYZBy(40.f);*/
+			speed.Y += 40.f;
+		}else if(dout.Y==1){
+			//exit horizontal on the floor
+			speed *= 1.5f;
+		}else{
+			//exit horizontal on the roof
+		}
+		
+	}
+
+	player.setYaw(yaw);
+	player.setPitch(pitch);
+	player.setSpeed(speed);
+
+	JLOG("new pitch: " << pitch);
+	JLOG("new yaw: " << yaw);
+	JLOG("new speed: " << JV3(speed));
+
+	JLOG("---------------");
 }
 
 void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
@@ -2222,45 +2305,63 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 					player->lastTeleportPos.X=FLT_MAX;	//player left previous teleport destination
 			}
 
-			v3f tgtf;
-			if(getTeleportTarget(&m_env,tele_posi,tgtf)){
-				if(player->lastTeleportPos == tgtf*BS)
-					return;	//already checked... and failed, so skip checks.
-				player->lastTeleportPos=tgtf*BS;
+			v3s16 posi_temp = tele_posi;
+			try{
+				v3f tgtf;
+				if(getTeleportTarget(&m_env,posi_temp,tgtf)){
+					if(player->lastTeleportPos == tgtf*BS)
+						return;	//already checked... and failed, so skip checks.
+					player->lastTeleportPos=tgtf*BS;
 
-				// check: is there known and empty place to teleport to?
-				v3s16 tgti=floatToInt(tgtf, 1);
-				content_t c1,c2;
-				c1=m_env.getMap().getNodeNoEx(tgti).getContent();
-				tgti.Y++;
-				c2=m_env.getMap().getNodeNoEx(tgti).getContent();
-				if((c1==CONTENT_IGNORE)||(c2==CONTENT_IGNORE))	//teleporting to unknown space?
-					return;
-				if(content_features(c1).walkable || content_features(c2).walkable)
-					return;
+					const MapNode entry = m_env.getMap().getNode(posi_temp); //entry teleport
+					JLOG("wejscie: " << JV3(posi_temp));
 
-				if(teleport_option > 1){
-					tgti=floatToInt(tgtf, 1);
-					bool loop=false;
-					while(!loop && teleport_option>1)
-					{	//check if there is teleport at primary teleport target, and it loops back.
-						v3f tgtfnext;
-						if(getTeleportTarget(&m_env,tgti,tgtfnext)){
-							tgti=floatToInt(tgtfnext, 1);
-							loop=(tele_posi.getDistanceFrom(tgti)<=1);	// tile away
-							//actionstream<<" D:"<<tele_posi.getDistanceFrom(tgti)<<" from="<<"("<<tgtf.X<<","<<tgtf.Y<<","<<tgtf.Z<<")"<<
-							//"  to="<<"("<<tgtfnext.X<<","<<tgtfnext.Y<<","<<tgtfnext.Z<<")     "<< std::endl;
-						}	else return;	//no teleport at destination
-						teleport_option--;
-					}
-					if(!loop)
+					// check: is there known and empty place to teleport to?
+					posi_temp=floatToInt(tgtf, 1);
+					MapNode n1,n2;
+					content_t c1,c2;
+					n1=m_env.getMap().getNode(posi_temp);
+					c1=n1.getContent();
+					posi_temp.Y++;
+					n2=m_env.getMap().getNode(posi_temp);
+					c2=n2.getContent();
+					if((c1==CONTENT_IGNORE)||(c2==CONTENT_IGNORE))//teleporting to unknown space?
 						return;
-				}
+					if(content_features(c1).walkable || content_features(c2).walkable)
+						return;
 
-				dout_server << "Teleporting: " << tgtf.X << " " << tgtf.Y << " " << tgtf.Z << std::endl;
-				player->setPosition(tgtf*BS);
-				SendMovePlayer(player);
-			}	//teleport exists
+					if(teleport_option > 1){
+						posi_temp=floatToInt(tgtf, 1);
+						bool loop=false, first=true;
+						while(!loop && teleport_option>1)
+						{	//check if there is teleport at primary teleport target, and it loops back.
+							v3f tgtfnext;
+							if(getTeleportTarget(&m_env,posi_temp,tgtfnext)){
+								if(first){
+									JLOG("wyjscie: " << JV3(posi_temp));
+									getTeleportDirection(entry,m_env.getMap().getNode(posi_temp),*player);
+								}
+								posi_temp=floatToInt(tgtfnext, 1);
+								loop=(tele_posi.getDistanceFrom(posi_temp)<=1);	// tile away
+								//actionstream<<" D:"<<tele_posi.getDistanceFrom(posi_temp)<<" from="<<"("<<tgtf.X<<","<<tgtf.Y<<","<<tgtf.Z<<")"<<
+								//"  to="<<"("<<tgtfnext.X<<","<<tgtfnext.Y<<","<<tgtfnext.Z<<")     "<< std::endl;
+							}	else return;	//no teleport at destination
+							teleport_option--;
+							first = false;
+						}
+						if(!loop)
+							return;
+					}
+
+					dout_server << "Teleporting: " << tgtf.X << " " << tgtf.Y << " " << tgtf.Z << std::endl;
+					player->setPosition(tgtf*BS);
+					SendMovePlayer(player);
+				}	//teleport exists
+
+			}catch(InvalidPositionException&){
+				//std::cout << "Not existing position: " << posi_temp.X << "," << posi_temp.Y << "," << posi_temp.Z << std::endl;
+				m_emerge_queue.addBlock(0,getNodeBlockPos(posi_temp),BLOCK_EMERGE_FLAG_FROMDISK);
+			}
 		}	//teleport_option
 	}
 	else if(command == TOSERVER_GOTBLOCKS)
@@ -3962,6 +4063,7 @@ void Server::SendMovePlayer(Player *player)
 	writeV3F1000(os, player->getPosition());
 	writeF1000(os, player->getPitch());
 	writeF1000(os, player->getYaw());
+	writeV3F1000(os, player->getSpeed());
 	
 	{
 		v3f pos = player->getPosition();

@@ -309,6 +309,12 @@ public:
 		return &m_env;
 	}
 
+	//j
+	void forceSendPlayerPos()
+	{
+		m_playerpos_send_timer = 10000.f;
+	}
+
 private:
 	
 	// Virtual methods from con::PeerHandler

@@ -1633,7 +1633,8 @@ void the_game(
 
 		//TimeTaker //timer2("//timer2");
 
-		LocalPlayer* player = client.getLocalPlayer();
+		LocalPlayer* player = client.getEnv()->getLocalPlayer();
+		Map * map = &client.getEnv()->getMap();
 		camera.update(player, busytime, screensize);
 		camera.step(dtime);
 		
@@ -1735,7 +1736,7 @@ void the_game(
 		/*
 			Find out which node we are pointing at
 		*/
-		
+
 		bool nodefound = false;
 		v3s16 nodepos;
 		v3s16 neighbourpos;
@@ -1756,8 +1757,6 @@ void the_game(
 			}
 		} else {
 			//j
-			Player* player = client.getEnv()->getLocalPlayer();
-			Map * map = &client.getEnv()->getMap();
 			ClansManager* clansManager = &client.getEnv()->clansManager;
 			MapBlock* block = map->getBlockNoCreateNoEx(getNodeBlockPos(nodepos));
 			MapBlock* block2 = map->getBlockNoCreateNoEx(getNodeBlockPos(neighbourpos));
@@ -1831,14 +1830,16 @@ void the_game(
 				}
 				else
 				if(content == CONTENT_BORDERSTONE)
-				{	char ts[50];
-					v3s16 tp=getContainerPos(nodepos,MAP_BLOCKSIZE);
-					tp*=MAP_BLOCKSIZE;
-					snprintf(ts, 50, "Protected area: %i<=X<%i, %i<=Y<%i, %i<=Z<%i",
-						tp.X,tp.X+MAP_BLOCKSIZE,
-						tp.Y,tp.Y+MAP_BLOCKSIZE,
-						tp.Z,tp.Z+MAP_BLOCKSIZE);
-					infotext=narrow_to_wide(ts).c_str();
+				{	
+					v3s16 tp = getContainerPos(nodepos,MAP_BLOCKSIZE) * MAP_BLOCKSIZE;
+
+					std::wostringstream ts;
+					ts	<< L"Protected area: "
+						<< L"X [" << tp.X << L":" << tp.X+MAP_BLOCKSIZE-1 << L"], "
+						<< L"Y [" << tp.Y << L":" << tp.Y+MAP_BLOCKSIZE-1 << L"], "
+						<< L"Z [" << tp.Z << L":" << tp.Z+MAP_BLOCKSIZE-1 << L"]";
+
+					infotext = ts.str();
 				}
 			}
 			
@@ -2067,6 +2068,11 @@ void the_game(
 		
 		input->resetLeftReleased();
 		input->resetRightReleased();
+		
+		v3s16 standPos = floatToInt(player_position - v3f(0,BS/2,0), BS);
+		MapNode standNode = map->getNodeNoEx(standPos);
+		if(standNode.getContent() == CONTENT_TELEPORT)
+			client.forceSendPlayerPos();
 		
 		/*
 			Calculate stuff for drawing

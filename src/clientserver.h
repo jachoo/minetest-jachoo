@@ -155,6 +155,7 @@ enum ToClientCommand
 		v3f1000 player position
 		f1000 player pitch
 		f1000 player yaw
+		v3f1000 player speed [optional]
 	*/
 
 	TOCLIENT_ACCESS_DENIED = 0x35,

@@ -1406,6 +1406,10 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 		f32 pitch = readF1000(is);
 		f32 yaw = readF1000(is);
 		player->setPosition(pos);
+		if(datasize > 22){
+			v3f speed = readV3F1000(is);
+			player->setSpeed(speed);
+		}
 		/*player->setPitch(pitch);
 		player->setYaw(yaw);*/
 
