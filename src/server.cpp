@@ -1847,14 +1847,20 @@ bool getTeleportTarget(/*const*/ ServerEnvironment *m_env,/*in+out*/ v3s16 &wher
 			( tgt.X == 0 && tgt.Y == 0 && tgt.Z == 0 && text.substr(0,5) != "0 0 0" )
 		) return false;
 		// actionstream<<"It points to: "<<"("<<tgt.X<<","<<tgt.Y<<","<<tgt.Z<<")     "<<std::endl;
+
+		tgt.X = core::round_(tgt.X);
+		tgt.Y = core::round_(tgt.Y);
+		tgt.Z = core::round_(tgt.Z);
+
 		return true;
 	}
 	return false;
 }
 
+
 static void getTeleportDirection(const MapNode& in, const MapNode& out, Player& player)
 {
-#if 0
+#if 1
 #define JLOG(x) std::cout << x << std::endl
 #define JV3(x) '[' << x.X << ',' << x.Y << ',' << x.Z << ']'
 #else
@@ -1866,8 +1872,8 @@ static void getTeleportDirection(const MapNode& in, const MapNode& out, Player& 
 	JLOG("old pitch: " << player.getPitch());
 	JLOG("old yaw: " << player.getYaw());
 
-	v3s16 din = unpackDir(in.param2);
-	v3s16 dout = unpackDir(out.param2);
+	v3s16 din = -unpackDir(in.param2);
+	v3s16 dout = -unpackDir(out.param2);
 
 	JLOG("in: " << JV3(din));
 	JLOG("out: " << JV3(dout));
@@ -1881,46 +1887,62 @@ static void getTeleportDirection(const MapNode& in, const MapNode& out, Player& 
 	f32 pitch = player.getPitch();
 	f32 yaw = player.getYaw();
 
+#define TELEPORT_VERT_MIN_SPEED 90.f
+#define TELEPORT_HORZ_MIN_SPEED 50.f
+
 	if(din.Y==0 && dout.Y==0){
 		//both vertical (on the wall)
+
 		v3f rotIn = dinf.getHorizontalAngle();
 		v3f rotOut = doutf.getHorizontalAngle();
 
-		f32 rotXZ = rotOut.Y - rotIn.Y;
+		f32 rotXZ = rotIn.Y - rotOut.Y;
 
 		JLOG("rotIn: " << JV3(rotIn));
 		JLOG("rotOut: " << JV3(rotOut));
 
-		yaw -= rotXZ;
+		yaw += rotXZ;
 
 		speed.rotateXZBy(rotXZ);
+
+		if(speed.getLengthSQ() < (TELEPORT_VERT_MIN_SPEED*TELEPORT_VERT_MIN_SPEED))
+			speed += doutf * TELEPORT_VERT_MIN_SPEED;
 		
 	}else if(din.Y!=0 && dout.Y!=0){
 		//both horizontal (floor/roof)
+
 		if(din.Y == dout.Y) //the same direction
 			speed.Y *= -1.f;
+		if(dout.Y==1 && core::equals(speed.Y,0.f,1.f)) speed.Y += TELEPORT_HORZ_MIN_SPEED; //for better effect ;)
+
 	}else{
 		//mixed directions
+
 		f32 speedVal = speed.getLength();
-		speed = -doutf * speedVal;
 
 		if(dout.Y==0){
 			//exit vertical (on the wall)
+			//speedVal *= 1.5f;
+			if(speedVal < TELEPORT_VERT_MIN_SPEED) speedVal = TELEPORT_VERT_MIN_SPEED; //for better effect ;)
+
 			v3f rotOut = doutf.getHorizontalAngle();
-			yaw = rotOut.Y;
+			yaw = -rotOut.Y;
 			pitch = 0.f;
 			/*if(dout.X!=0)
 				speed.rotateXYBy(40.f);
 			else
 				speed.rotateYZBy(40.f);*/
-			speed.Y += 40.f;
+			//speed.Y += 40.f;
+			//speedVal += 4.f * BS; //walkspeed_max
 		}else if(dout.Y==1){
 			//exit horizontal on the floor
-			speed *= 1.5f;
+			//speed *= 1.5f;
+			if(speedVal < TELEPORT_HORZ_MIN_SPEED) speedVal = TELEPORT_HORZ_MIN_SPEED; //for better effect ;)
 		}else{
 			//exit horizontal on the roof
 		}
-		
+
+		speed = doutf * speedVal;
 	}
 
 	player.setYaw(yaw);

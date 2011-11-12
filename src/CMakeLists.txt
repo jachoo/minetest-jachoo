@@ -40,7 +40,7 @@ if(WIN32)
 	# Windows
 	if(MSVC) # MSVC Specifics
 		# Surpress some useless warnings
-		add_definitions ( /D "_CRT_SECURE_NO_DEPRECATE" /W1 )
+		add_definitions ( /D "_CRT_SECURE_NO_DEPRECATE" /W1 /wd4355 )
 	else() # Probably MinGW = GCC
 		set(PLATFORM_LIBS ws2_32.lib)
 	endif()
@@ -229,8 +229,8 @@ if(MSVC)
 
 	# EHa enables SEH exceptions (used for catching segfaults)
 	set(CMAKE_CXX_FLAGS_RELEASE "/EHa /O2 /Ob2 /Oi /Ot /Oy /GL /FD /MT /GS- /arch:SSE /fp:fast /D NDEBUG /D _HAS_ITERATOR_DEBUGGING=0 /TP")
-	#set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG /NODEFAULTLIB:\"libcmtd.lib\" /NODEFAULTLIB:\"libcmt.lib\"")
-	set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG")
+	set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG /NODEFAULTLIB:\"libcmtd.lib\" /NODEFAULTLIB:\"libcmt.lib\"")
+	#set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG")
 
 	# Debug build doesn't catch exceptions by itself
 	# Add some optimizations because otherwise it's VERY slow
