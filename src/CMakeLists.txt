@@ -128,6 +128,7 @@ set(common_SRCS
 	base64.cpp
 	ban.cpp
 	clans.cpp
+	teleports.cpp
 )
 
 # This gives us the icon
@@ -174,6 +175,81 @@ set(minetestserver_SRCS
 	${common_SRCS}
 	servermain.cpp
 )
+
+# Want to see header files in solution explorer
+if(MSVC)
+	set(common_HDRS
+		log.h
+		content_sao.h
+		mapgen.h
+		content_inventory.h
+		content_nodemeta.h
+		content_craft.h
+		content_mapnode.h
+		auth.h
+		collision.h
+		nodemetadata.h
+		serverobject.h
+		noise.h
+		mineral.h
+		porting.h
+		materials.h
+		defaultsettings.h
+		mapnode.h
+		voxel.h
+		inventory.h
+		debug.h
+		serialization.h
+		light.h
+		filesys.h
+		connection.h
+		environment.h
+		server.h
+		servercommand.h
+		socket.h
+		mapblock.h
+		mapsector.h
+		map.h
+		player.h
+		utility.h
+		test.h
+		sha1.h
+		base64.h
+		ban.h
+		clans.h
+		teleports.h
+	)
+	set(minetest_HDRS
+		${common_HDRS}
+		MyBillboardSceneNode.h
+		content_mapblock.h
+		content_cao.h
+		mapblock_mesh.h
+		farmesh.h
+		keycode.h
+		camera.h
+		clouds.h
+		clientobject.h
+		guiMainMenu.h
+		guiKeyChangeMenu.h
+		guiMessageMenu.h
+		guiTextInputMenu.h
+		guiInventoryMenu.h
+		guiPauseMenu.h
+		guiPasswordChange.h
+		guiDeathScreen.h
+		client.h
+		tile.h
+		game.h
+		main.h
+	)
+	set(minetestserver_HDRS
+		${common_HDRS}
+	)
+	set(common_SRCS ${common_SRCS} ${common_HDRS})
+	set(minetest_SRCS ${minetest_SRCS} ${minetest_HDRS})
+	set(minetestserver_SRCS ${minetestserver_SRCS} ${minetestserver_HDRS})
+endif()
 
 include_directories(
 	${PROJECT_BINARY_DIR}

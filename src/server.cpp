@@ -1816,43 +1816,73 @@ void Server::Receive()
 	}
 }
 
+
 //TODO: move this to some map class?
 // throws InvalidPositionException (where = that wrong position)
-bool getTeleportTarget(/*const*/ ServerEnvironment *m_env,/*in+out*/ v3s16 &where,/*out*/v3f &tgt)
+bool getTeleportTarget(/*const*/ ServerEnvironment& env,/*in+out*/ v3s16 &where,/*out*/v3f &tgt)
 {
 	// actionstream<<"Is Teleport at: "<<"("<<where.X<<","<<where.Y<<","<<where.Z<<")     "<<std::endl;
+
+	ServerMap& map = env.getServerMap();
 	SignNodeMetadata* meta=NULL;
+
 	// check player "foot block"
-	if(m_env->getMap().getNode(where).getContent() == CONTENT_TELEPORT)
-		meta = (SignNodeMetadata*)m_env->getMap().getNodeMetadata(where);
+	if(map.getNode(where).getContent() == CONTENT_TELEPORT)
+		meta = (SignNodeMetadata*)map.getNodeMetadata(where);
 	else {
 		// check player "head block"
 		where.Y++;
 		if(where.Y<MAP_GENERATION_LIMIT-1)
-			if(m_env->getMap().getNode(where).getContent() == CONTENT_TELEPORT)
-				meta = (SignNodeMetadata*)m_env->getMap().getNodeMetadata(where);
+			if(map.getNode(where).getContent() == CONTENT_TELEPORT)
+				meta = (SignNodeMetadata*)map.getNodeMetadata(where);
 	}
 
 	if(meta){
 		std::string text = meta->getText();
 		if(text == "")
 			return false;
-		str_replace_char(text,',',' ');
-		std::istringstream is(text);
-		is >> tgt.X >> tgt.Y >> tgt.Z;
 
-		if(	tgt.X >= MAP_GENERATION_LIMIT || tgt.X <= -MAP_GENERATION_LIMIT ||
-			tgt.Y >= MAP_GENERATION_LIMIT || tgt.Y <= -MAP_GENERATION_LIMIT ||
-			tgt.Z >= MAP_GENERATION_LIMIT || tgt.Z <= -MAP_GENERATION_LIMIT ||
-			( tgt.X == 0 && tgt.Y == 0 && tgt.Z == 0 && text.substr(0,5) != "0 0 0" )
-		) return false;
-		// actionstream<<"It points to: "<<"("<<tgt.X<<","<<tgt.Y<<","<<tgt.Z<<")     "<<std::endl;
+		static const bool allowCoords = g_settings->getBool("teleport_allow_coords");
+		static const bool allowOneWay = g_settings->getBool("teleport_allow_oneway");
 
-		tgt.X = core::round_(tgt.X);
-		tgt.Y = core::round_(tgt.Y);
-		tgt.Z = core::round_(tgt.Z);
+		TeleportInfo ti;
+		if( !getTeleportInfo(ti, text, allowCoords, true, true) ) return false;
+		
+		try{
+			//first, check if teleport has coords target (if allowed)
+			if(allowCoords && ti.targetLocation.X != TELEPORT_IGNORE){
+				tgt.X = ti.targetLocation.X;
+				tgt.Y = ti.targetLocation.Y;
+				tgt.Z = ti.targetLocation.Z;
+				return true;
+			}
+			
+			//next, check if it is one-way teleport (if allowed)
+			if(allowOneWay && !ti.targetName.empty()){
+				//one way teleport
+				v3s16 target = map.teleportsManager.getTarget(ti.targetName,where);
+				tgt.X = target.X;
+				tgt.Y = target.Y;
+				tgt.Z = target.Z;
+				return true;
+			}
 
-		return true;
+			//last, check if it is two-way teleport
+			if(!ti.thisName.empty()){
+				//one way teleport
+				v3s16 target = map.teleportsManager.getTarget(ti.thisName,where);
+				tgt.X = target.X;
+				tgt.Y = target.Y;
+				tgt.Z = target.Z;
+				return true;
+			}
+
+			//if we are here, that's bad...
+			return false;
+			
+		}catch(TeleportManagerException&){
+			return false;
+		}
 	}
 	return false;
 }
@@ -1860,13 +1890,6 @@ bool getTeleportTarget(/*const*/ ServerEnvironment *m_env,/*in+out*/ v3s16 &wher
 
 static void getTeleportDirection(const MapNode& in, const MapNode& out, Player& player)
 {
-#if 1
-#define JLOG(x) std::cout << x << std::endl
-#define JV3(x) '[' << x.X << ',' << x.Y << ',' << x.Z << ']'
-#else
-#define JLOG(x)
-#endif
-
 	JLOG("---------------");
 
 	JLOG("old pitch: " << player.getPitch());
@@ -2330,7 +2353,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 			v3s16 posi_temp = tele_posi;
 			try{
 				v3f tgtf;
-				if(getTeleportTarget(&m_env,posi_temp,tgtf)){
+				if(getTeleportTarget(m_env,posi_temp,tgtf)){
 					if(player->lastTeleportPos == tgtf*BS)
 						return;	//already checked... and failed, so skip checks.
 					player->lastTeleportPos=tgtf*BS;
@@ -2352,27 +2375,37 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 					if(content_features(c1).walkable || content_features(c2).walkable)
 						return;
 
-					if(teleport_option > 1){
-						posi_temp=floatToInt(tgtf, 1);
-						bool loop=false, first=true;
-						while(!loop && teleport_option>1)
-						{	//check if there is teleport at primary teleport target, and it loops back.
-							v3f tgtfnext;
-							if(getTeleportTarget(&m_env,posi_temp,tgtfnext)){
-								if(first){
-									JLOG("wyjscie: " << JV3(posi_temp));
-									getTeleportDirection(entry,m_env.getMap().getNode(posi_temp),*player);
-								}
-								posi_temp=floatToInt(tgtfnext, 1);
-								loop=(tele_posi.getDistanceFrom(posi_temp)<=1);	// tile away
-								//actionstream<<" D:"<<tele_posi.getDistanceFrom(posi_temp)<<" from="<<"("<<tgtf.X<<","<<tgtf.Y<<","<<tgtf.Z<<")"<<
-								//"  to="<<"("<<tgtfnext.X<<","<<tgtfnext.Y<<","<<tgtfnext.Z<<")     "<< std::endl;
-							}	else return;	//no teleport at destination
-							teleport_option--;
-							first = false;
-						}
-						if(!loop)
-							return;
+					//if(teleport_option > 1){
+					//	posi_temp=floatToInt(tgtf, 1);
+					//	bool loop=false, first=true;
+					//	while(!loop && teleport_option>1)
+					//	{	//check if there is teleport at primary teleport target, and it loops back.
+					//		v3f tgtfnext;
+					//		if(getTeleportTarget(m_env,posi_temp,tgtfnext)){
+					//			if(first){
+					//				JLOG("wyjscie: " << JV3(posi_temp));
+					//				getTeleportDirection(entry,m_env.getMap().getNode(posi_temp),*player);
+					//			}
+					//			posi_temp=floatToInt(tgtfnext, 1);
+					//			loop=(tele_posi.getDistanceFrom(posi_temp)<=1);	// tile away
+					//			//actionstream<<" D:"<<tele_posi.getDistanceFrom(posi_temp)<<" from="<<"("<<tgtf.X<<","<<tgtf.Y<<","<<tgtf.Z<<")"<<
+					//			//"  to="<<"("<<tgtfnext.X<<","<<tgtfnext.Y<<","<<tgtfnext.Z<<")     "<< std::endl;
+					//		}	else return;	//no teleport at destination
+					//		teleport_option--;
+					//		first = false;
+					//	}
+					//	if(!loop)
+					//		return;
+					//}
+					posi_temp = floatToInt(tgtf,1);
+					MapNode outNode = m_env.getMap().getNode(posi_temp);
+					if(outNode.getContent() != CONTENT_TELEPORT){
+						posi_temp.Y+=1;
+						outNode = m_env.getMap().getNode(posi_temp);
+					}
+					if(outNode.getContent() == CONTENT_TELEPORT){
+						JLOG("wyjscie: " << JV3(posi_temp));
+						getTeleportDirection(entry,outNode,*player);
 					}
 
 					dout_server << "Teleporting: " << tgtf.X << " " << tgtf.Y << " " << tgtf.Z << std::endl;
@@ -3224,6 +3257,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 		}
 
 		MapNode node = m_env.getMap().getNodeNoEx(p);
+		SignNodeMetadata *signmeta = (SignNodeMetadata*)meta;
 
 		//if(text.length()>1 && text[0]=='#'){
 		if( node.getContent() == CONTENT_BORDERSTONE ){
@@ -3267,20 +3301,35 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 
 			//j teleport
 
-			//std::string st = text;
-			//str_replace_char(st,',',' ');
-			//float f[3];
-			//std::istringstream is(st);
-			//is >> f[0] >> f[1] >> f[2];
+			static const bool allowCoords = g_settings->getBool("teleport_allow_coords");
+			static const bool allowOneWay = g_settings->getBool("teleport_allow_oneway");
 
-			////TODO: map limits!
-			//for(int i=0; i<3; i++)
-			//	if(f[i]>32000 || f[i]<-32000) f[i]=0;
+			//delete old name if exists
+			TeleportInfo tl;
+			if(getTeleportInfo(tl,signmeta->getText(),false,false,true) && !tl.thisName.empty()){
+				m_env.getServerMap().teleportsManager.removeNoEx(tl.thisName,p);
+			}
 
-			//text = ftos(f[0]) + "," + ftos(f[1]) + "," + ftos(f[2]);
+			//add new name if possible
+			TeleportInfo ti;
+			if(getTeleportInfo(ti,text,allowCoords,allowOneWay,true)){
+				//if(allowCoords && ti.targetLocation.X != TELEPORT_IGNORE){
+				//	//target = coordinates
+				//	//don't add anything
+				//}
+				//if(allowOneWay && !ti.targetName.empty()){
+				//	//target = name (one-way)
+				//	//don't add anything too
+				//}
+				if(!ti.thisName.empty()){
+					//this node will have a name
+					//add this
+					m_env.getServerMap().teleportsManager.addNoEx(ti.thisName,p);
+				}
+
+			}
 		}
 
-		SignNodeMetadata *signmeta = (SignNodeMetadata*)meta;
 		signmeta->setText(text);
 		
 		actionstream<<player->getName()<<" writes \""<<text<<"\" to sign "

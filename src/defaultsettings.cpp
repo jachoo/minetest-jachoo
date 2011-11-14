@@ -111,5 +111,7 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("enable_experimental", "false");
 	settings->setDefault("crafted_teleports", "4");
 	settings->setDefault("build_on_borders", "false");
+	settings->setDefault("teleport_allow_coords", "false");
+	settings->setDefault("teleport_allow_oneway", "true");
 }
 

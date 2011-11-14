@@ -22,7 +22,16 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <string>
 
-std::string trim(const std::string &str);
+inline std::string trim(const std::string& source, const char* delims = " \t\r\n", const int delims_cnt = 4) {
+
+	std::string::size_type first = source.find_first_not_of(delims,0,delims_cnt);
+	
+	if(first==std::string::npos) return "";
+
+	std::string::size_type last = source.find_last_not_of(delims,std::string::npos,delims_cnt);
+
+	return source.substr(first,last-first+1);
+}
 
 class Strfnd{
     std::string tek;
@@ -123,44 +132,6 @@ public:
         start(s);
     }
 };
-
-inline std::string trim(const std::string &s)
-{
-	std::string str = s;
-    while( 
-            str.length()>0
-            &&
-            (
-             str.substr(0,               1)==" "     ||
-             str.substr(0,               1)=="\t"    ||
-             str.substr(0,               1)=="\r"    ||
-             str.substr(0,               1)=="\n"    ||
-             str.substr(str.length()-1,  1)==" "     ||
-             str.substr(str.length()-1,  1)=="\t"    ||
-             str.substr(str.length()-1,  1)=="\r"    ||
-             str.substr(str.length()-1,  1)=="\n"
-            )
-         )
-    {  
-        if      (str.substr(0,              1)==" ")
-			str = str.substr(1,str.length()-1);
-        else if (str.substr(0,              1)=="\t")
-			str = str.substr(1,str.length()-1);
-        else if (str.substr(0,              1)=="\r")
-			str = str.substr(1,str.length()-1);
-        else if (str.substr(0,              1)=="\n")
-			str = str.substr(1,str.length()-1);
-        else if (str.substr(str.length()-1, 1)==" ")
-			str = str.substr(0,str.length()-1);
-        else if (str.substr(str.length()-1, 1)=="\t")
-			str = str.substr(0,str.length()-1);
-        else if (str.substr(str.length()-1, 1)=="\r")
-			str = str.substr(0,str.length()-1);
-        else if (str.substr(str.length()-1, 1)=="\n")
-			str = str.substr(0,str.length()-1);
-    }
-    return str;
-}
 
 #endif
 

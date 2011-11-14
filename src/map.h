@@ -31,6 +31,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "mapblock_nodemod.h"
 #include "constants.h"
 #include "voxel.h"
+#include "teleports.h"
 
 extern "C" {
 	#include "sqlite3.h"
@@ -435,6 +436,9 @@ public:
 
 	u64 getSeed(){ return m_seed; }
 
+	//j
+	TeleportsManager teleportsManager;
+
 private:
 	// Seed used for all kinds of randomness
 	u64 m_seed;
@@ -454,7 +458,7 @@ private:
 		Metadata is re-written on disk only if this is true.
 		This is reset to false when written on disk.
 	*/
-	bool m_map_metadata_changed;
+	//bool m_map_metadata_changed;
 	
 	/*
 		SQLite database and statements

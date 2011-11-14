@@ -775,15 +775,26 @@ inline std::string wide_to_narrow(const std::wstring& wcs)
 
 // Split a string using the given delimiter. Returns a vector containing
 // the component parts.
-inline std::vector<std::wstring> str_split(const std::wstring &str, wchar_t delimiter)
+// Optionally limits output strings (0 = unlimited)
+template<class T, class D>
+inline std::vector<T> str_split(const T& str, const D& delimiter, int limit = 0)
 {
-	std::vector<std::wstring> parts;
-	std::wstringstream sstr(str);
-	std::wstring part;
-	while(std::getline(sstr, part, delimiter))
-		parts.push_back(part);
+	std::vector<T> parts;
+	
+	int pos = 0, lpos = 0;
+	
+	while( --limit && pos != T::npos ){
+		pos = str.find(delimiter,lpos);
+		parts.push_back( str.substr(lpos, pos-lpos) );
+		lpos = pos+1;
+	}
+	
+	if(limit==0 && pos != T::npos)
+		parts.push_back( str.substr(lpos) );
+	
 	return parts;
 }
+
 
 
 /*
@@ -893,6 +904,27 @@ inline float stof(std::string s)
 }
 
 #endif
+
+//throws if error
+template<class T, class Str>
+inline T stonum_ex(const typename Str& s)
+{
+	typedef typename Str::value_type char_t;
+	T f;
+	std::basic_istringstream<char_t> ss(s);
+	ss.exceptions(std::ios::failbit);
+	ss>>f;
+	return f;
+}
+
+template<class Str>
+inline float stof_ex(const typename Str& s) { return stonum_ex<float>(s); }
+
+template<class Str>
+inline double stod_ex(const typename Str& s) { return stonum_ex<double>(s); }
+
+template<class Str>
+inline double stoi_ex(const typename Str& s) { return stonum_ex<int>(s); }
 
 inline std::string itos(s32 i)
 {

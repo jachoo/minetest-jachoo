@@ -30,6 +30,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "porting.h"
 #include "mapgen.h"
 #include "nodemetadata.h"
+#include "content_nodemeta.h"
 #include "content_mapnode.h"
 #ifndef SERVER
 #include <IMaterialRenderer.h>
@@ -1177,6 +1178,19 @@ void Map::removeNodeAndUpdate(v3s16 p,
 				light_sources, modified_blocks);
 	}
 
+
+	//j
+	//If removing a teleport -> remove its name from manager
+	try{
+		ServerMap& smap = dynamic_cast<ServerMap&>(*this);
+		if(getNode(p).getContent() == CONTENT_TELEPORT){
+			SignNodeMetadata* meta = (SignNodeMetadata*)getNodeMetadata(p);
+			TeleportInfo ti;
+			if(meta && getTeleportInfo(ti,meta->getText(),true,true,true) && !ti.thisName.empty())
+				smap.teleportsManager.removeNoEx(ti.thisName,p);
+		}
+	}catch(std::bad_cast&){}
+
 	/*
 		Remove node metadata
 	*/
@@ -1923,7 +1937,7 @@ void Map::nodeMetadataStep(float dtime,
 ServerMap::ServerMap(std::string savedir):
 	Map(dout_server),
 	m_seed(0),
-	m_map_metadata_changed(true),
+	/*m_map_metadata_changed(true),*/
 	m_database(NULL),
 	m_database_read(NULL),
 	m_database_write(NULL)
@@ -2853,10 +2867,10 @@ void ServerMap::save(bool only_changed)
 		infostream<<"ServerMap: Saving whole map, this can take time."
 				<<std::endl;
 	
-	if(only_changed == false || m_map_metadata_changed)
-	{
+	/*if(only_changed == false || m_map_metadata_changed)
+	{*/
 		saveMapMeta();
-	}
+	/*}*/
 
 	u32 sector_meta_count = 0;
 	u32 block_count = 0;
@@ -2984,11 +2998,13 @@ void ServerMap::saveMapMeta()
 	Settings params;
 	params.setU64("seed", m_seed);
 
+	teleportsManager.save(params);
+
 	params.writeLines(os);
 
 	os<<"[end_of_params]\n";
 	
-	m_map_metadata_changed = false;
+	/*m_map_metadata_changed = false;*/
 }
 
 void ServerMap::loadMapMeta()
@@ -3023,8 +3039,13 @@ void ServerMap::loadMapMeta()
 	}
 
 	m_seed = params.getU64("seed");
-
 	infostream<<"ServerMap::loadMapMeta(): "<<"seed="<<m_seed<<std::endl;
+
+	try{
+		teleportsManager.load(params);
+	}catch(SettingNotFoundException &e){
+		// This is not as important
+	}
 }
 
 void ServerMap::saveSectorMeta(ServerMapSector *sector)

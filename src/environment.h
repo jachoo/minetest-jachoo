@@ -38,6 +38,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "utility.h"
 #include "activeobject.h"
 #include "clans.h"
+#include "teleports.h"
 
 class Server;
 class ActiveBlockModifier;
@@ -86,6 +87,7 @@ public:
 
 	//j
 	ClansManager clansManager;
+
 protected:
 	// peer_ids in here should be unique, except that there may be many 0s
 	core::list<Player*> m_players;

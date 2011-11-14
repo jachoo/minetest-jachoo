@@ -1809,24 +1809,24 @@ void the_game(
 				{	
 					// meta/infotext contains text inside "" quotes.
 					// find 3rd comma
-					int icomma=infotext.find(L',');
+					/*int icomma=infotext.find(L',');
 					if(icomma>0) 
 						icomma=infotext.find(L',',icomma+1);
 					if(icomma>0) 
-						icomma=infotext.find(L',',icomma+1);
+						icomma=infotext.find(L',',icomma+1);*/
 
-					if(!canModify)
-					{
-						if(icomma<0)
-							infotext = L"Unnamed teleport";
-						else
-							infotext=L"Teleport: "+infotext.substr(icomma+1,infotext.length()-icomma-2);
-			}
-					else
-					{
-						if(icomma<0)
-							infotext = infotext.substr(0,infotext.length()-1)+L",Unnamed\"";
-					}
+					//if(!canModify)
+					//{
+					//	if(icomma<0)
+					//		infotext = L"Unnamed teleport";
+					//	else
+					//		infotext=L"Teleport: "+infotext.substr(icomma+1,infotext.length()-icomma-2);
+					//}
+					//else
+					//{
+					//	if(icomma<0)
+					//		infotext = infotext.substr(0,infotext.length()-1)+L",Unnamed\"";
+					//}
 				}
 				else
 				if(content == CONTENT_BORDERSTONE)
