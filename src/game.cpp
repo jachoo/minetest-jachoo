@@ -301,7 +301,10 @@ void getPointedNode(Client *client, v3f player_position,
 		core::aabbox3d<f32> &nodehilightbox,
 		f32 d)
 {
+	bool freeNodeFound = false;
+
 	f32 mindistance = BS * 1001;
+	f32 maxdistance = -BS * 1001;
 	
 	v3s16 pos_i = floatToInt(player_position, BS);
 
@@ -324,8 +327,8 @@ void getPointedNode(Client *client, v3f player_position,
 		try
 		{
 			n = client->getNode(v3s16(x,y,z));
-			if(content_pointable(n.getContent()) == false)
-				continue;
+			//if(content_pointable(n.getContent()) == false)
+				//continue;
 		}
 		catch(InvalidPositionException &e)
 		{
@@ -625,25 +628,69 @@ void getPointedNode(Client *client, v3f player_position,
 
 					if(facebox.intersectsWithLine(shootline))
 					{
-						nodefound = true;
-						nodepos = np;
-						neighbourpos = np + dirs[i];
-						mindistance = distance;
+						if(content_pointable(n.getContent()) == true){
+							nodefound = true;
+							nodepos = np;
+							neighbourpos = np + dirs[i];
+							mindistance = distance;
 
-						//nodehilightbox = facebox;
+							//nodehilightbox = facebox;
 
-						const float d = 0.502;
-						core::aabbox3d<f32> nodebox
-								(-BS*d, -BS*d, -BS*d, BS*d, BS*d, BS*d);
-						v3f nodepos_f = intToFloat(nodepos, BS);
-						nodebox.MinEdge += nodepos_f;
-						nodebox.MaxEdge += nodepos_f;
-						nodehilightbox = nodebox;
+							const float d = 0.502;
+							core::aabbox3d<f32> nodebox
+									(-BS*d, -BS*d, -BS*d, BS*d, BS*d, BS*d);
+							v3f nodepos_f = intToFloat(nodepos, BS);
+							nodebox.MinEdge += nodepos_f;
+							nodebox.MaxEdge += nodepos_f;
+							nodehilightbox = nodebox;
+						}else if(nodefound==false && np != pos_i && np != v3s16(pos_i.X,pos_i.Y+1,pos_i.Z) ){
+							//check if we can build here
+							//this can't be checked (not such material property)...
+							//but is it important here anyway?
+
+							bool can_build = false;
+							v3s16 ap;
+							static const v3s16 neigh_pos[] = { v3s16(0,0,1), v3s16(0,0,-1), v3s16(0,1,0), v3s16(0,-1,0), v3s16(1,0,0), v3s16(-1,0,0) };
+							for(int i=0; i<6; i++)
+							{
+								ap = np + neigh_pos[i];
+								try{
+									MapNode an = client->getNode(ap);
+									//check if we can `stick' to this node
+									if(!content_features(an).walkable) //FIXME: is this OK?
+										continue;
+									can_build = true;
+									goto after_check_neighbor;
+								}catch(InvalidPositionException&){}
+							}
+							after_check_neighbor:
+							if(can_build && distance > maxdistance){
+
+								maxdistance = distance;
+
+								//nodefound = true;   //we can't do this here!
+								freeNodeFound = true; //instead, we set this and check at the end
+								nodepos = ap; //yes, these are swaped!
+								neighbourpos = np;
+								//mindistance = distance;
+
+								//nodehilightbox = facebox;
+
+								const float d = 0.502;
+								core::aabbox3d<f32> nodebox
+										(-BS*d, -BS*d, -BS*d, BS*d, BS*d, BS*d);
+								v3f nodepos_f = intToFloat(np, BS);
+								nodebox.MinEdge += nodepos_f;
+								nodebox.MaxEdge += nodepos_f;
+								nodehilightbox = nodebox;
+							}
+						}
 					}
 				} // if distance < mindistance
 			} // for dirs
 		} // regular block
 	} // for coords
+	if(!nodefound && freeNodeFound) nodefound = true;
 }
 
 void update_skybox(video::IVideoDriver* driver,

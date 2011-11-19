@@ -2952,7 +2952,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 				u16 newowner=0;
 				// Only allow borderstone if player already belongs to some clan
 				if(mitem->getMaterial() == CONTENT_BORDERSTONE)
-				{	if(player->lastClan && player->clans.find(player->lastClan) == player->clans.end())
+				{	if(player->lastClan && !player->isClanMember(player->lastClan))
 						player->lastClan=0;	// was invalid (no longer member?)
 					if(!player->lastClan)
 					{	if(player->clanOwner)
