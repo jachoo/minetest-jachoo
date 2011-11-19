@@ -48,7 +48,8 @@ Player::Player():
 	m_pitch(0),
 	m_yaw(0),
 	m_speed(0,0,0),
-	m_position(0,0,0)
+	m_position(0,0,0),
+	m_eyeOffset(0,BS+(5*BS)/8,0)
 {
 	lastTeleportPos.X=FLT_MAX;
 	updateName("<not set>");
@@ -1019,6 +1020,22 @@ void LocalPlayer::applyControl(float dtime)
 	
 	// Accelerate to target speed with maximum increment
 	accelerate(speed, inc);
+
+	//j
+	static const f32 eyes_max = BS+(5*BS)/8;
+	static const f32 eyes_min = BS * 0.9f;
+	static const f32 eyes_delta = 10.f;
+	if(control.crouch){
+		//crouching
+		if(m_eyeOffset.Y > eyes_min + 0.01f)
+			m_eyeOffset.Y += (eyes_min-m_eyeOffset.Y) * eyes_delta * dtime;
+		else m_eyeOffset.Y = eyes_min;
+	}else{
+		//standing
+		if(m_eyeOffset.Y < eyes_max - 0.01f)
+			m_eyeOffset.Y += (eyes_max-m_eyeOffset.Y) * eyes_delta * dtime;
+		else m_eyeOffset.Y = eyes_max;
+	}
 }
 #endif
 

@@ -1558,7 +1558,8 @@ void the_game(
 				false,
 				false,
 				camera_pitch,
-				camera_yaw
+				camera_yaw,
+				false
 			);
 			client.setPlayerControl(control);
 		}
@@ -1580,9 +1581,10 @@ void the_game(
 				input->isKeyDown(getKeySetting("keymap_right")),
 				input->isKeyDown(getKeySetting("keymap_jump")),
 				input->isKeyDown(getKeySetting("keymap_special1")),
-				input->isKeyDown(getKeySetting("keymap_sneak")),
+				input->isKeyDown(getKeySetting("keymap_sneak")) || input->isKeyDown(getKeySetting("keymap_crouch")),
 				camera_pitch,
-				camera_yaw
+				camera_yaw,
+				input->isKeyDown(getKeySetting("keymap_crouch"))
 			);
 			client.setPlayerControl(control);
 		}
