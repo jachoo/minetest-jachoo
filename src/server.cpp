@@ -1777,14 +1777,13 @@ void Server::AsyncRunStep()
 void Server::Receive()
 {
 	DSTACK(__FUNCTION_NAME);
-	u32 data_maxsize = 10000;
-	Buffer<u8> data(data_maxsize);
+	SharedBuffer<u8> data;
 	u16 peer_id;
 	u32 datasize;
 	try{
 		{
 			JMutexAutoLock conlock(m_con_mutex);
-			datasize = m_con.Receive(peer_id, *data, data_maxsize);
+			datasize = m_con.Receive(peer_id, data);
 		}
 
 		// This has to be called so that the client list gets synced
@@ -4808,8 +4807,7 @@ v3f findSpawnPos(ServerMap &map)
 {
 	//return v3f(50,50,50)*BS;
 
-	v2s16 nodepos;
-	s16 groundheight = 0;
+	v3s16 nodepos;
 	
 #if 0
 	nodepos = v2s16(0,0);
@@ -4822,13 +4820,11 @@ v3f findSpawnPos(ServerMap &map)
 	{
 		s32 range = 1 + i;
 		// We're going to try to throw the player to this position
-		nodepos = v2s16(-range + (myrand()%(range*2)),
+		v2s16 nodepos2d = v2s16(-range + (myrand()%(range*2)),
 				-range + (myrand()%(range*2)));
-		v2s16 sectorpos = getNodeSectorPos(nodepos);
-		// Get sector (NOTE: Don't get because it's slow)
-		//m_env.getMap().emergeSector(sectorpos);
+		//v2s16 sectorpos = getNodeSectorPos(nodepos2d);
 		// Get ground height at point (fallbacks to heightmap function)
-		groundheight = map.findGroundLevel(nodepos);
+		s16 groundheight = map.findGroundLevel(nodepos2d);
 		// Don't go underwater
 		if(groundheight < WATER_LEVEL)
 		{
@@ -4841,22 +4837,33 @@ v3f findSpawnPos(ServerMap &map)
 			//infostream<<"-> Underwater"<<std::endl;
 			continue;
 		}
-
-		// Found a good place
-		//infostream<<"Searched through "<<i<<" places."<<std::endl;
-		break;
+		
+		nodepos = v3s16(nodepos2d.X, groundheight-2, nodepos2d.Y);
+		bool is_good = false;
+		s32 air_count = 0;
+		for(s32 i=0; i<10; i++){
+			v3s16 blockpos = getNodeBlockPos(nodepos);
+			map.emergeBlock(blockpos, true);
+			MapNode n = map.getNodeNoEx(nodepos);
+			if(n.getContent() == CONTENT_AIR){
+				air_count++;
+				if(air_count >= 2){
+					is_good = true;
+					nodepos.Y -= 1;
+					break;
+				}
+			}
+			nodepos.Y++;
+		}
+		if(is_good){
+			// Found a good place
+			//infostream<<"Searched through "<<i<<" places."<<std::endl;
+			break;
+		}
 	}
 #endif
 	
-	// If no suitable place was not found, go above water at least.
-	if(groundheight < WATER_LEVEL)
-		groundheight = WATER_LEVEL;
-
-	return intToFloat(v3s16(
-			nodepos.X,
-			groundheight + 3,
-			nodepos.Y
-			), BS);
+	return intToFloat(nodepos, BS);
 }
 
 Player *Server::emergePlayer(const char *name, const char *password, u16 peer_id)

@@ -75,10 +75,45 @@ void signal_handler_init(void)
 }
 
 #else // _WIN32
+	#include <signal.h>
+	#include <windows.h>
+	
+	BOOL WINAPI event_handler(DWORD sig)
+	{
+		switch(sig)
+		{
+		case CTRL_C_EVENT:
+		case CTRL_CLOSE_EVENT:
+		case CTRL_LOGOFF_EVENT:
+		case CTRL_SHUTDOWN_EVENT:
 
+			if(g_killed == false)
+			{
+				dstream<<DTIME<<"INFO: event_handler(): "
+						<<"Ctrl+C, Close Event, Logoff Event or Shutdown Event, shutting down."<<std::endl;
+				dstream<<DTIME<<"INFO: event_handler(): "
+						<<"Printing debug stacks"<<std::endl;
+				debug_stacks_print();
+
+				g_killed = true;
+			}
+			else
+			{
+				(void)signal(SIGINT, SIG_DFL);
+			}
+
+			break;
+		case CTRL_BREAK_EVENT:
+			break;
+		}
+		
+		return TRUE;
+	}
+	
 void signal_handler_init(void)
 {
-	// No-op
+	dstream<<"signal_handler_init()"<<std::endl;
+	SetConsoleCtrlHandler( (PHANDLER_ROUTINE)event_handler,TRUE);
 }
 
 #endif
@@ -129,8 +164,8 @@ void initializePaths()
 	// Use "./bin/../data"
 	path_data = std::string(buf) + DIR_DELIM ".." DIR_DELIM "data";
 		
-	// Use "./bin/../"
-	path_userdata = std::string(buf) + DIR_DELIM ".." DIR_DELIM;
+	// Use "./bin/.."
+	path_userdata = std::string(buf) + DIR_DELIM "..";
 
 	/*
 		Linux
@@ -149,7 +184,7 @@ void initializePaths()
 	path_data = std::string(buf) + "/../data";
 		
 	// Use "./bin/../"
-	path_userdata = std::string(buf) + "/../";
+	path_userdata = std::string(buf) + "/..";
 	
 	/*
 		OS X
@@ -160,7 +195,7 @@ void initializePaths()
 	dstream<<"WARNING: Relative path not properly supported on OS X and FreeBSD"
 			<<std::endl;
 	path_data = std::string("../data");
-	path_userdata = std::string("../");
+	path_userdata = std::string("..");
 
 	#endif
 

@@ -54,12 +54,12 @@ Compiling on GNU/Linux:
 -----------------------
 
 Install dependencies. Here's an example for Debian/Ubuntu:
-$ apt-get install build-essential libirrlicht-dev cmake libbz2-dev libpng12-dev libjpeg8-dev libxxf86vm-dev libgl1-mesa-dev
+$ apt-get install build-essential libirrlicht-dev cmake libbz2-dev libpng12-dev libjpeg8-dev libxxf86vm-dev libgl1-mesa-dev libsqlite3-dev
 
 Download source, extract (this is the URL to the latest of source repository, which might not work at all times):
-$ wget https://bitbucket.org/celeron55/minetest/get/tip.tar.gz
-$ tar xf tip.tar.gz
-$ cd minetest
+$ wget https://github.com/celeron55/minetest/tarball/master -O master.tar.gz
+$ tar xf master.tar.gz
+$ cd celeron55-minetest-286edd4 (or similar)
 
 Build a version that runs directly from the source directory:
 $ cmake . -DRUN_IN_PLACE=1
@@ -73,7 +73,7 @@ $ ./minetest
 - If you want to install it system-wide (or are making a distribution package), you will want to use -DRUN_IN_PLACE=0
 - You can build a bare server or a bare client by specifying -DBUILD_CLIENT=0 or -DBUILD_SERVER=0
 - You can select between Release and Debug build by -DCMAKE_BUILD_TYPE=<Debug or Release>
-  - Note that the Debug build is considerably slower
+  - Debug build is slower, but gives much more useful output in a debugger
 
 Compiling on Windows:
 ---------------------
@@ -90,16 +90,18 @@ Compiling on Windows:
 		http://www.winimage.com/zLibDll/index.html
 	* Zlib library (zlibwapi.lib and zlibwapi.dll from zlib125dll.zip):
 		http://www.winimage.com/zLibDll/index.html
-	* gettext bibrary and tools:
+	* Optional: gettext bibrary and tools:
 		http://gnuwin32.sourceforge.net/downlinks/gettext.php
+		- This is used for other UI languages. Feel free to leave it out.
 	* And, of course, Minetest-c55:
 		http://celeron.55.lt/~celeron55/minetest/download
 - Steps:
 	- Select a directory called DIR hereafter in which you will operate.
 	- Make sure you have CMake and a compiler installed.
-	- Download all the other stuff to DIR and extract them into there. All those
-	  packages contain a nice base directory in them, which should end up being
-	  the direct subdirectories of DIR.
+	- Download all the other stuff to DIR and extract them into there.
+	  ("extract here", not "extract to packagename/")
+	- All those packages contain a nice base directory in them, which
+	  should end up being the direct subdirectories of DIR.
 	- You will end up with a directory structure like this (+=dir, -=file):
 	-----------------
 	+ DIR
@@ -119,7 +121,7 @@ Compiling on Windows:
 			+ lib
 			+ include
 			...
-		+ gettext
+		+ gettext (optional)
 			+bin
 			+include
 			+lib
@@ -163,7 +165,8 @@ Compiling on Windows:
 	If using MSVC:
 		- Open the generated minetest.sln
 		- The project defaults to the "Debug" configuration. Make very sure to
-		  select "Release", unless you want to debug some stuff (it's slower)
+		  select "Release", unless you want to debug some stuff (it's slower
+		  and might not even work at all)
 		- Build the ALL_BUILD project
 		- Build the INSTALL project
 		- You should now have a working game with the executable in
@@ -175,6 +178,30 @@ Compiling on Windows:
 		  (or mingw32-make or whatever it happens to be)
 		- You should now have a working game with the executable in
 			DIR/minetest/bin/minetest.exe
+
+Windows releases of minetest are built using a bat script like this:
+--------------------------------------------------------------------
+
+set installpath="C:\tmp\minetest_install"
+set irrlichtpath="C:\tmp\irrlicht-1.7.2"
+
+set sourcedir=%CD%
+set builddir=%sourcedir%\bvc10
+mkdir %builddir%
+pushd %builddir%
+cmake %sourcedir% -G "Visual Studio 10" -DIRRLICHT_SOURCE_DIR=%irrlichtpath% -DRUN_IN_PLACE=1 -DCMAKE_INSTALL_PREFIX=%installpath%
+"C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe" ALL_BUILD.vcxproj /p:Configuration=Release
+"C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe" INSTALL.vcxproj /p:Configuration=Release
+"C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe" PACKAGE.vcxproj /p:Configuration=Release
+popd
+
+License of Minetest-c55 textures
+--------------------------------
+
+This does not apply to texture packs made by others.
+
+Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)                                 
+http://creativecommons.org/licenses/by-sa/3.0/
 
 License of Minetest-c55
 -----------------------

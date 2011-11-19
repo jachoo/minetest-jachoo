@@ -852,9 +852,9 @@ struct TestConnection
 		try
 		{
 			u16 peer_id;
-			u8 data[100];
+			SharedBuffer<u8> data;
 			infostream<<"** running client.Receive()"<<std::endl;
-			u32 size = client.Receive(peer_id, data, 100);
+			u32 size = client.Receive(peer_id, data);
 			infostream<<"** Client received: peer_id="<<peer_id
 					<<", size="<<size
 					<<std::endl;
@@ -874,9 +874,9 @@ struct TestConnection
 		try
 		{
 			u16 peer_id;
-			u8 data[100];
+			SharedBuffer<u8> data;
 			infostream<<"** running server.Receive()"<<std::endl;
-			u32 size = server.Receive(peer_id, data, 100);
+			u32 size = server.Receive(peer_id, data);
 			infostream<<"** Server received: peer_id="<<peer_id
 					<<", size="<<size
 					<<std::endl;
@@ -901,9 +901,9 @@ struct TestConnection
 			try
 			{
 				u16 peer_id;
-				u8 data[100];
+				SharedBuffer<u8> data;
 				infostream<<"** running client.Receive()"<<std::endl;
-				u32 size = client.Receive(peer_id, data, 100);
+				u32 size = client.Receive(peer_id, data);
 				infostream<<"** Client received: peer_id="<<peer_id
 						<<", size="<<size
 						<<std::endl;
@@ -919,9 +919,9 @@ struct TestConnection
 		try
 		{
 			u16 peer_id;
-			u8 data[100];
+			SharedBuffer<u8> data;
 			infostream<<"** running server.Receive()"<<std::endl;
-			u32 size = server.Receive(peer_id, data, 100);
+			u32 size = server.Receive(peer_id, data);
 			infostream<<"** Server received: peer_id="<<peer_id
 					<<", size="<<size
 					<<std::endl;
@@ -929,7 +929,10 @@ struct TestConnection
 		catch(con::NoIncomingDataException &e)
 		{
 		}
-
+#if 1
+		/*
+			Simple send-receive test
+		*/
 		{
 			/*u8 data[] = "Hello World!";
 			u32 datasize = sizeof(data);*/
@@ -941,22 +944,23 @@ struct TestConnection
 			sleep_ms(50);
 
 			u16 peer_id;
-			u8 recvdata[100];
+			SharedBuffer<u8> recvdata;
 			infostream<<"** running server.Receive()"<<std::endl;
-			u32 size = server.Receive(peer_id, recvdata, 100);
+			u32 size = server.Receive(peer_id, recvdata);
 			infostream<<"** Server received: peer_id="<<peer_id
 					<<", size="<<size
 					<<", data="<<*data
 					<<std::endl;
-			assert(memcmp(*data, recvdata, data.getSize()) == 0);
+			assert(memcmp(*data, *recvdata, data.getSize()) == 0);
 		}
-		
+#endif
 		u16 peer_id_client = 2;
 #if 0
+		/*
+			Send consequent packets in different order
+			Not compatible with new Connection, thus commented out.
+		*/
 		{
-			/*
-				Send consequent packets in different order
-			*/
 			//u8 data1[] = "hello1";
 			//u8 data2[] = "hello2";
 			SharedBuffer<u8> data1 = SharedBufferFromString("hello1");
@@ -983,29 +987,29 @@ struct TestConnection
 			infostream<<"*** Receiving the packets"<<std::endl;
 
 			u16 peer_id;
-			u8 recvdata[20];
+			SharedBuffer<u8> recvdata;
 			u32 size;
 
 			infostream<<"** running client.Receive()"<<std::endl;
 			peer_id = 132;
-			size = client.Receive(peer_id, recvdata, 20);
+			size = client.Receive(peer_id, recvdata);
 			infostream<<"** Client received: peer_id="<<peer_id
 					<<", size="<<size
-					<<", data="<<recvdata
+					<<", data="<<*recvdata
 					<<std::endl;
 			assert(size == data1.getSize());
-			assert(memcmp(*data1, recvdata, data1.getSize()) == 0);
+			assert(memcmp(*data1, *recvdata, data1.getSize()) == 0);
 			assert(peer_id == PEER_ID_SERVER);
 			
 			infostream<<"** running client.Receive()"<<std::endl;
 			peer_id = 132;
-			size = client.Receive(peer_id, recvdata, 20);
+			size = client.Receive(peer_id, recvdata);
 			infostream<<"** Client received: peer_id="<<peer_id
 					<<", size="<<size
-					<<", data="<<recvdata
+					<<", data="<<*recvdata
 					<<std::endl;
 			assert(size == data2.getSize());
-			assert(memcmp(*data2, recvdata, data2.getSize()) == 0);
+			assert(memcmp(*data2, *recvdata, data2.getSize()) == 0);
 			assert(peer_id == PEER_ID_SERVER);
 			
 			bool got_exception = false;
@@ -1013,10 +1017,10 @@ struct TestConnection
 			{
 				infostream<<"** running client.Receive()"<<std::endl;
 				peer_id = 132;
-				size = client.Receive(peer_id, recvdata, 20);
+				size = client.Receive(peer_id, recvdata);
 				infostream<<"** Client received: peer_id="<<peer_id
 						<<", size="<<size
-						<<", data="<<recvdata
+						<<", data="<<*recvdata
 						<<std::endl;
 			}
 			catch(con::NoIncomingDataException &e)
@@ -1027,6 +1031,47 @@ struct TestConnection
 			assert(got_exception);
 		}
 #endif
+#if 0
+		/*
+			Send large amounts of packets (infinite test)
+			Commented out because of infinity.
+		*/
+		{
+			infostream<<"Sending large amounts of packets (infinite test)"<<std::endl;
+			int sendcount = 0;
+			for(;;){
+				int datasize = myrand_range(0,5)==0?myrand_range(100,10000):myrand_range(0,100);
+				infostream<<"datasize="<<datasize<<std::endl;
+				SharedBuffer<u8> data1(datasize);
+				for(u16 i=0; i<datasize; i++)
+					data1[i] = i/4;
+				
+				int sendtimes = myrand_range(1,10);
+				for(int i=0; i<sendtimes; i++){
+					server.Send(peer_id_client, 0, data1, true);
+					sendcount++;
+				}
+				infostream<<"sendcount="<<sendcount<<std::endl;
+				
+				//int receivetimes = myrand_range(1,20);
+				int receivetimes = 20;
+				for(int i=0; i<receivetimes; i++){
+					SharedBuffer<u8> recvdata;
+					u16 peer_id = 132;
+					u16 size = 0;
+					bool received = false;
+					try{
+						size = client.Receive(peer_id, recvdata);
+						received = true;
+					}catch(con::NoIncomingDataException &e){
+					}
+				}
+			}
+		}
+#endif
+		/*
+			Send a large packet
+		*/
 		{
 			const int datasize = 30000;
 			SharedBuffer<u8> data1(datasize);
@@ -1047,7 +1092,7 @@ struct TestConnection
 
 			sleep_ms(3000);
 			
-			u8 recvdata[datasize + 1000];
+			SharedBuffer<u8> recvdata;
 			infostream<<"** running client.Receive()"<<std::endl;
 			u16 peer_id = 132;
 			u16 size = 0;
@@ -1057,7 +1102,7 @@ struct TestConnection
 				if(porting::getTimeMs() - timems0 > 5000)
 					break;
 				try{
-					size = client.Receive(peer_id, recvdata, datasize + 1000);
+					size = client.Receive(peer_id, recvdata);
 					received = true;
 				}catch(con::NoIncomingDataException &e){
 				}
@@ -1071,13 +1116,13 @@ struct TestConnection
 			infostream<<"Received data (size="<<size<<"):";
 			for(int i=0; i<size && i<20; i++){
 				if(i%2==0) DEBUGPRINT(" ");
-				DEBUGPRINT("%.2X", ((int)((const char*)recvdata)[i])&0xff);
+				DEBUGPRINT("%.2X", ((int)(recvdata[i]))&0xff);
 			}
 			if(size>20)
 				infostream<<"...";
 			infostream<<std::endl;
 
-			assert(memcmp(*data1, recvdata, data1.getSize()) == 0);
+			assert(memcmp(*data1, *recvdata, data1.getSize()) == 0);
 			assert(peer_id == PEER_ID_SERVER);
 		}
 		
