@@ -391,7 +391,7 @@ void mapblock_mesh_generate_special(MeshMakeData *data,
 			video::SColor c = MapBlock_LightColor(255, l);*/
 			video::SColor c(0xFFFFFFFF);
 				
-			float d = (float)BS/16;
+			float d = BS/8;
 			// Wall at X+ of node
 			/*video::S3DVertex vertices[4] =
 			{

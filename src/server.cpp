@@ -1832,9 +1832,8 @@ bool getTeleportTarget(/*const*/ ServerEnvironment& env,/*in+out*/ v3s16 &where,
 	else {
 		// check player "head block"
 		where.Y++;
-		if(where.Y<MAP_GENERATION_LIMIT-1)
-			if(map.getNode(where).getContent() == CONTENT_TELEPORT)
-				meta = (SignNodeMetadata*)map.getNodeMetadata(where);
+		if(map.getNode(where).getContent() == CONTENT_TELEPORT)
+			meta = (SignNodeMetadata*)map.getNodeMetadata(where);
 	}
 
 	if(meta){

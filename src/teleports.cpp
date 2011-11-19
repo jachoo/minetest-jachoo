@@ -103,7 +103,9 @@ void TeleportsManager::save(Settings& args) const
 	std::ostringstream os;
 	for(links_t::const_iterator it=m_links.begin(); it!=m_links.end(); it++){
 		const TeleportLink& t = it->second;
-		os << it->first << ' '; //name
+		std::string name = it->first;
+		str_replace_char(name,' ','\xFF');
+		os << name << ' '; //name
 		for(int i=0; i<2; i++)  //coords
 			if(t.coords[i].X == TELEPORT_IGNORE) //if coord ignored - don't save Y and Z
 				os << TELEPORT_IGNORE << ' ';
@@ -120,8 +122,9 @@ void TeleportsManager::load(Settings& args)
 		while(is.good() && !is.eof()){
 			std::string name;
 			is >> name;
-			if(name.length() == 0) continue;
 			if(is.bad() || is.eof()) break;
+			if(name.length() == 0) continue;
+			str_replace_char(name,'\xFF',' ');
 			for(int i=0; i<2; i++){
 				v3s16 v;
 				is >> v.X;
@@ -196,7 +199,7 @@ bool getTeleportInfo(TeleportInfo& ti, const std::string& text, bool allowCoords
 	//find if parts[0] has target name
 	int pos = parts[0].find("->");
 
-	if(!allowUnnamed && pos==0) JLOGAND("no 'thisname'", return false;) //no 'thisname' specified
+	if(!allowUnnamed && pos==0) JLOGAND("missing 'thisname'", return false;) //no 'thisname' specified
 
 	if(pos != std::string::npos){ //yes, split it to 'thisname' and 'targetname'
 		if(pos>0) ti.thisName = trim(parts[0].substr(0,pos));

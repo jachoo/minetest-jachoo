@@ -77,7 +77,7 @@ private:
 
 
 
-#if 1
+#ifndef NDEBUG
 #define JLOG(x) std::cout << x << std::endl
 #define JV3(x) '[' << x.X << ',' << x.Y << ',' << x.Z << ']'
 #define JLOGAND(x,y) { JLOG(x); y }

@@ -50,6 +50,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 #include "content_mapnode.h"
 #include "content_nodemeta.h"
+#include "teleports.h"
+
 
 /*
 	Setting this to 1 enables a special camera mode that forces
@@ -457,8 +459,8 @@ void getPointedNode(Client *client, v3f player_position,
 			};*/
 			v3f vertices[4] =
 			{
-				v3f(BS*0.42,-BS*0.8,-BS*0.8),
-				v3f(BS*0.49, BS*0.8, BS*0.8),
+				v3f(BS*0.37,-BS*0.8,-BS*0.8),
+				v3f(BS*0.42, BS*0.8, BS*0.8),
 			};
 
 			for(s32 i=0; i<2; i++)
@@ -469,12 +471,12 @@ void getPointedNode(Client *client, v3f player_position,
 					vertices[i].rotateXYBy(90);
 				else{
 					if(dir == v3s16(1,0,0))
-						vertices[i].rotateXZBy(0);
-					if(dir == v3s16(-1,0,0))
+						;//vertices[i].rotateXZBy(0);
+					else if(dir == v3s16(-1,0,0))
 						vertices[i].rotateXZBy(180);
-					if(dir == v3s16(0,0,1))
+					else if(dir == v3s16(0,0,1))
 						vertices[i].rotateXZBy(90);
-					if(dir == v3s16(0,0,-1))
+					else if(dir == v3s16(0,0,-1))
 						vertices[i].rotateXZBy(-90);
 					vertices[i].Y += BS/2;
 				}
@@ -1807,6 +1809,33 @@ void the_game(
 				content_t content = map->getNodeNoEx(nodepos).getContent();
 				if(content == CONTENT_TELEPORT)
 				{	
+					try{
+						SignNodeMetadata& smeta = dynamic_cast<SignNodeMetadata&>(*meta);
+						std::string txt = smeta.getText();
+						TeleportInfo ti;
+						if(getTeleportInfo(ti,txt,true,true,false)){
+							if(!ti.description.empty())
+								txt = ti.description;
+							else if(ti.targetLocation.X!=TELEPORT_IGNORE){
+								std::ostringstream oss;
+								oss << "Destination: " 
+									<< ti.targetLocation.X << ",  " 
+									<< ti.targetLocation.Y << ",  " 
+									<< ti.targetLocation.Z;
+								txt = oss.str();
+							} else {
+								txt.clear();
+								if(!ti.thisName.empty())
+									txt = "Portal name: " + ti.thisName;
+								if(!ti.targetName.empty()){
+									if(!ti.thisName.empty())
+										txt += " | ";
+									txt += "Target portal: " + ti.targetName;
+								}
+							}
+							infotext = narrow_to_wide(txt);
+						}else infotext.clear();
+					}catch(std::bad_cast&){} //bad meta data for a teleport
 					// meta/infotext contains text inside "" quotes.
 					// find 3rd comma
 					/*int icomma=infotext.find(L',');

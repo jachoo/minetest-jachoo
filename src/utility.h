@@ -907,7 +907,7 @@ inline float stof(std::string s)
 
 //throws if error
 template<class T, class Str>
-inline T stonum_ex(const typename Str& s)
+inline T stonum_ex(const Str& s)
 {
 	typedef typename Str::value_type char_t;
 	T f;
