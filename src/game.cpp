@@ -44,6 +44,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "log.h"
 #include "filesys.h"
 
+#include <typeinfo>
+
 /*
 	TODO: Move content-aware stuff to separate file by adding properties
 	      and virtual interfaces

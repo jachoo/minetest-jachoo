@@ -39,6 +39,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "log.h"
 #include "profiler.h"
 
+#include <typeinfo>
+
 #define PP(x) "("<<(x).X<<","<<(x).Y<<","<<(x).Z<<")"
 
 /*

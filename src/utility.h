@@ -960,13 +960,13 @@ inline T stonum_ex(const Str& s)
 }
 
 template<class Str>
-inline float stof_ex(const typename Str& s) { return stonum_ex<float>(s); }
+inline float stof_ex(const Str& s) { return stonum_ex<float>(s); }
 
 template<class Str>
-inline double stod_ex(const typename Str& s) { return stonum_ex<double>(s); }
+inline double stod_ex(const Str& s) { return stonum_ex<double>(s); }
 
 template<class Str>
-inline double stoi_ex(const typename Str& s) { return stonum_ex<int>(s); }
+inline double stoi_ex(const Str& s) { return stonum_ex<int>(s); }
 
 inline std::string itos(s32 i)
 {
