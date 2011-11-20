@@ -75,9 +75,11 @@ void ContentFeatures::setInventoryTextureCube(std::string top,
 	if(g_texturesource == NULL)
 		return;
 
-	//jFIXME: usunac to
+//workaround for windows irrlicht bug (texture cubes drawn wrong)
+#ifdef _WINDOWS
 	inventory_texture = g_texturesource->getTextureRaw("[noalpha:"+top+"^[forcesingle");
 	return;
+#else
 	
 	str_replace_char(top, '^', '&');
 	str_replace_char(left, '^', '&');
@@ -91,6 +93,7 @@ void ContentFeatures::setInventoryTextureCube(std::string top,
 	imgname_full += "{";
 	imgname_full += right;
 	inventory_texture = g_texturesource->getTextureRaw(imgname_full);
+#endif
 }
 #endif
 

@@ -307,6 +307,10 @@ void getPointedNode(Client *client, v3f player_position,
 	f32 maxdistance = -BS * 1001;
 	
 	v3s16 pos_i = floatToInt(player_position, BS);
+	//j@@@
+	v3s16 cam_i(camera_direction.X>=0?1:-1,
+				camera_direction.Y>=0?1:-1,
+				camera_direction.Z>=0?1:-1);
 
 	/*infostream<<"pos_i=("<<pos_i.X<<","<<pos_i.Y<<","<<pos_i.Z<<")"
 			<<std::endl;*/
@@ -643,27 +647,36 @@ void getPointedNode(Client *client, v3f player_position,
 							nodebox.MinEdge += nodepos_f;
 							nodebox.MaxEdge += nodepos_f;
 							nodehilightbox = nodebox;
-						}else if(nodefound==false && np != pos_i && np != v3s16(pos_i.X,pos_i.Y+1,pos_i.Z) ){
-							//check if we can build here
-							//this can't be checked (not such material property)...
-							//but is it important here anyway?
+						}else if(  nodefound==false
+								&& distance < (BS*6)
+								&& np != pos_i 
+								&& np != v3s16(pos_i.X,pos_i.Y+1,pos_i.Z) 
+								&& content_features(n).buildable_to){
 
 							bool can_build = false;
 							v3s16 ap;
-							static const v3s16 neigh_pos[] = { v3s16(0,0,1), v3s16(0,0,-1), v3s16(0,1,0), v3s16(0,-1,0), v3s16(1,0,0), v3s16(-1,0,0) };
 							for(int i=0; i<6; i++)
 							{
-								ap = np + neigh_pos[i];
+								//j@@@
+								const v3s16& npos = dirs[i];
+								ap = np + npos;
 								try{
 									MapNode an = client->getNode(ap);
 									//check if we can `stick' to this node
 									if(!content_features(an).walkable) //FIXME: is this OK?
 										continue;
+									if(    npos.X==cam_i.X
+										|| npos.Y==cam_i.Y
+										|| npos.Z==cam_i.Z
+										){
+											can_build = false;
+											break;
+									}
 									can_build = true;
-									goto after_check_neighbor;
+									//goto after_check_neighbor;
 								}catch(InvalidPositionException&){}
 							}
-							after_check_neighbor:
+							//after_check_neighbor:
 							if(can_build && distance > maxdistance){
 
 								maxdistance = distance;
