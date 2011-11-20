@@ -296,11 +296,12 @@ void draw_hotbar(video::IVideoDriver *driver, gui::IGUIFont *font,
 */
 void getPointedNode(Client *client, v3f player_position,
 		v3f camera_direction, v3f camera_position,
-		bool &nodefound, core::line3d<f32> shootline,
+		bool &nodefound, bool &onlyFreeFound, core::line3d<f32> shootline,
 		v3s16 &nodepos, v3s16 &neighbourpos,
 		core::aabbox3d<f32> &nodehilightbox,
 		f32 d)
 {
+	onlyFreeFound = false;
 	bool freeNodeFound = false;
 
 	f32 mindistance = BS * 1001;
@@ -308,7 +309,8 @@ void getPointedNode(Client *client, v3f player_position,
 	
 	v3s16 pos_i = floatToInt(player_position, BS);
 	//j@@@
-	v3s16 cam_i(camera_direction.X>=0?1:-1,
+	v3s16 cam_i = floatToInt(camera_position, BS);
+	v3s16 camdir_i(camera_direction.X>=0?1:-1,
 				camera_direction.Y>=0?1:-1,
 				camera_direction.Z>=0?1:-1);
 
@@ -654,25 +656,29 @@ void getPointedNode(Client *client, v3f player_position,
 								&& content_features(n).buildable_to){
 
 							bool can_build = false;
-							v3s16 ap;
+							v3s16 neigh_pos;
 							for(int i=0; i<6; i++)
 							{
 								//j@@@
 								const v3s16& npos = dirs[i];
-								ap = np + npos;
+								v3s16 ap = np + npos;
 								try{
 									MapNode an = client->getNode(ap);
 									//check if we can `stick' to this node
 									if(!content_features(an).walkable) //FIXME: is this OK?
 										continue;
-									if(    npos.X==cam_i.X
-										|| npos.Y==cam_i.Y
-										|| npos.Z==cam_i.Z
-										){
-											can_build = false;
-											break;
+									if(    npos.X==camdir_i.X
+										|| npos.Y==camdir_i.Y
+										|| npos.Z==camdir_i.Z
+										|| (npos.X != 0 && cam_i.X == np.X)
+										|| (npos.Y != 0 && cam_i.Y == np.Y)
+										|| (npos.Z != 0 && cam_i.Z == np.Z) )
+									{
+										can_build = false;
+										break;
 									}
 									can_build = true;
+									neigh_pos = ap;
 									//goto after_check_neighbor;
 								}catch(InvalidPositionException&){}
 							}
@@ -683,7 +689,7 @@ void getPointedNode(Client *client, v3f player_position,
 
 								//nodefound = true;   //we can't do this here!
 								freeNodeFound = true; //instead, we set this and check at the end
-								nodepos = ap; //yes, these are swaped!
+								nodepos = neigh_pos; //yes, these are swaped!
 								neighbourpos = np;
 								//mindistance = distance;
 
@@ -703,7 +709,7 @@ void getPointedNode(Client *client, v3f player_position,
 			} // for dirs
 		} // regular block
 	} // for coords
-	if(!nodefound && freeNodeFound) nodefound = true;
+	if(!nodefound && freeNodeFound) nodefound = onlyFreeFound = true;
 }
 
 void update_skybox(video::IVideoDriver* driver,
@@ -1828,13 +1834,14 @@ void the_game(
 		*/
 
 		bool nodefound = false;
+		bool onlyFreeNodeFound = false;
 		v3s16 nodepos;
 		v3s16 neighbourpos;
 		core::aabbox3d<f32> nodehilightbox;
 
 		getPointedNode(&client, player_position,
 				camera_direction, camera_position,
-				nodefound, shootline,
+				nodefound, onlyFreeNodeFound, shootline,
 				nodepos, neighbourpos,
 				nodehilightbox, d);
 	
@@ -1976,7 +1983,7 @@ void the_game(
 			{
 				nodig_delay_counter -= dtime;
 			}
-			else
+			else if(!onlyFreeNodeFound)
 			{
 				if(nodepos != nodepos_old)
 				{
