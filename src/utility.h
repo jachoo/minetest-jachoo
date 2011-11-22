@@ -823,7 +823,7 @@ inline std::vector<T> str_split(const T& str, const D& delimiter, int limit = 0)
 {
 	std::vector<T> parts;
 	
-	int pos = 0, lpos = 0;
+	typename T::size_type pos = 0, lpos = 0;
 	
 	while( --limit && pos != T::npos ){
 		pos = str.find(delimiter,lpos);

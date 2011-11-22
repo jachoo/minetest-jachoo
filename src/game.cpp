@@ -653,7 +653,8 @@ void getPointedNode(Client *client, v3f player_position,
 								&& distance < (BS*6)
 								&& np != pos_i 
 								&& np != v3s16(pos_i.X,pos_i.Y+1,pos_i.Z) 
-								&& content_features(n).buildable_to){
+								&& content_features(n).buildable_to )
+						{
 
 							bool can_build = false;
 							v3s16 neigh_pos;
@@ -667,10 +668,10 @@ void getPointedNode(Client *client, v3f player_position,
 									//check if we can `stick' to this node
 									if(!content_features(an).walkable) //FIXME: is this OK?
 										continue;
-									if(    npos.X==camdir_i.X
+									if(    npos.X==camdir_i.X //is it same direction as camera?
 										|| npos.Y==camdir_i.Y
 										|| npos.Z==camdir_i.Z
-										|| (npos.X != 0 && cam_i.X == np.X)
+										|| (npos.X != 0 && cam_i.X == np.X) //is it the same axis as camera?
 										|| (npos.Y != 0 && cam_i.Y == np.Y)
 										|| (npos.Z != 0 && cam_i.Z == np.Z) )
 									{
@@ -2501,7 +2502,17 @@ void the_game(
 		//timer3.stop();
 		
 		//infostream<<"smgr->drawAll()"<<std::endl;
-		
+
+		//j
+		/*driver->getOverrideMaterial().Material.Wireframe = true;
+		driver->getOverrideMaterial().EnableFlags=irr::video::EMF_WIREFRAME;
+		driver->getOverrideMaterial().EnablePasses =
+			irr::scene::ESNRP_SKY_BOX
+			+irr::scene::ESNRP_SOLID
+			+irr::scene::ESNRP_TRANSPARENT
+			+irr::scene::ESNRP_TRANSPARENT_EFFECT
+			+irr::scene::ESNRP_SHADOW
+			;*/
 		{
 			TimeTaker timer("smgr");
 			smgr->drawAll();
